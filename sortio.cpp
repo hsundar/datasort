@@ -4,18 +4,76 @@
 
 #include "sortio.h"
 
-
 sortio_Class::sortio_Class() 
 {
-  initialized  = 0;
-  master       = false;
-  nio_tasks    = 0;
-  basename     = "part";
+  initialized      = 0;
+  master           = false;
+  nio_tasks        = 0;
+  num_records_read = 0;
+  basename         = "part";
 }
 
-void sortio_Class::Initialize(std::string ifile, MPI_Comm IO_COMM)
+sortio_Class::~sortio_Class() 
+{
+}
+
+void sortio_Class::Summarize()
+{
+  gt.Finalize();
+
+  if(master)
+    {
+      gt.Summarize();
+      printf("\n[sortio] --- Local Read Performance----------- \n");
+    }
+
+  MPI_Barrier(IO_COMM);
+
+  // local performance
+
+  double time_local = gt.ElapsedSeconds("Raw Read");
+  double read_rate  = num_records_read*REC_SIZE/(1000*1000*1000*time_local);
+
+  printf("[sortio][%i]: Total (local) read speed = %7.3f (GB/sec)\n",io_rank,read_rate);
+
+  // global performance
+
+  int num_records_global;
+  double time_worst;
+  double aggregate_rate;
+
+  MPI_Allreduce(&num_records_read,&num_records_global,1,MPI_INTEGER,MPI_SUM,IO_COMM);
+  MPI_Allreduce(&time_local,&time_worst,    1,MPI_DOUBLE,MPI_MAX,IO_COMM);
+  MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
+
+  if(master)
+    {
+      double total_gbs = 1.0*num_records_global*REC_SIZE/(1000*1000*1000);
+
+      printf("\n");
+      printf("[sortio] --- Global Read Performance ----------- \n");
+      printf("[sortio] --> Total records read = %i\n",num_records_global);
+      if(total_gbs < 1000)
+	printf("[sortio] --> Total amount of data read  = %7.3f (GBs)\n",total_gbs);
+      else
+	printf("[sortio] --> Total amount of data read  = %7.3f (TBs)\n",total_gbs/1000.0);
+
+      printf("\n");
+      printf("[sortio] --> Global    read performance = %7.3f (GB/sec)\n",total_gbs/time_worst);
+      printf("[sortio] --> Aggregate read performance = %7.3f (GB/sec)\n",aggregate_rate);
+    } 
+  
+
+  return;
+}
+
+void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 {
   assert(!initialized);
+
+  gt.Init("Sort IO Subsystem");
+
+  IO_COMM = COMM;
 
   MPI_Comm_size (IO_COMM, &nio_tasks);
   MPI_Comm_rank (IO_COMM, &io_rank  );
@@ -37,9 +95,9 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm IO_COMM)
       printf("[sortio]: --> input directory               = %s\n",indir.c_str());
     }
 
-  // Bcast necessary runtime controls to I/O children
+  // Broadcast necessary runtime controls to I/O children
 
-  int tmp_string_size = indir.size()+1;
+  int tmp_string_size = indir.size() + 1;
   char *tmp_string    = NULL;
 
   MPI_Bcast(&num_files_total,1,MPI_INTEGER,0,IO_COMM);
@@ -57,16 +115,14 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm IO_COMM)
 
   MPI_Barrier(IO_COMM);
 
-  if(master)
-    printf("end of %s\n",__func__);
-
   initialized = true;
-
   return; 
 }
 
 void sortio_Class::ReadFiles()
 {
+
+  gt.BeginTimer("Raw Read");
   
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
   int read_size;
@@ -83,7 +139,15 @@ void sortio_Class::ReadFiles()
 	printf("[sortio][%3i]: starting read iteration %4i of %4i total\n",io_rank,iter,num_iters-1);
 
       std::ostringstream s_id;
-      s_id << iter*nio_tasks + io_rank;
+      int file_suffix = iter*nio_tasks + io_rank;
+
+      if(file_suffix >= num_files_total)
+	{
+	  gt.EndTimer("Raw Read");
+	  return;
+	}
+
+      s_id << file_suffix;
       std::string infile = filebase + s_id.str();
 
       printf("[sortio][%3i]: filename = %s\n",io_rank,infile.c_str());
@@ -94,8 +158,6 @@ void sortio_Class::ReadFiles()
 	MPI_Abort(MPI_COMM_WORLD,42);
 
       read_size = REC_SIZE;
-
-      int num_records_read = 0;
 
       while(read_size == REC_SIZE)
 	{
@@ -115,6 +177,8 @@ void sortio_Class::ReadFiles()
       printf("[sortio][%3i]: records read = %i\n",io_rank,num_records_read);
 
     }
+
+  gt.EndTimer("Raw Read");
 
 }
 

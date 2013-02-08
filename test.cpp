@@ -16,7 +16,7 @@ int main(int argc, char *argv[], char *env[])
   MPI_Comm_rank (MPI_COMM_WORLD, &num_local);
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
-  sort_IO.ReadFiles();
+
 
   GRVY::GRVY_Input_Class iparse;
 
@@ -32,6 +32,9 @@ int main(int argc, char *argv[], char *env[])
       //printf("nio_tasks = %i\n",nio_tasks);
       assert(nio_tasks <= num_procs);
     }
+
+  sort_IO.ReadFiles();
+  sort_IO.Summarize();
 
   MPI_Finalize();
   return 0;

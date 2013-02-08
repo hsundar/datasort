@@ -4,7 +4,7 @@
 [sortio]
 
 num_tasks = 1
-num_files = 20
+num_files = 8
 input_dir = /scratch/00161/karl/sort_input/1-stripe/10_gib/
 
 
