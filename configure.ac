@@ -9,9 +9,15 @@ AM_INIT_AUTOMAKE
 AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
+AC_PROG_CC
 AC_PROG_CXX
+AC_LANG([C++])
+ACX_MPI([HAVE_MPI=1 CXX="$MPICXX" AC_DEFINE(HAVE_MPI,1,[Define if MPI is available])],
+		    AC_MSG_ERROR([Could not find MPI C++ compiler support]))
 
 # Checks for libraries.
+
+AX_PATH_GRVY([0.30],[yes])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h stdlib.h sys/ioctl.h unistd.h])

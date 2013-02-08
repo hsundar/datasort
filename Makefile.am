@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS  = -I m4
 
 bin_PROGRAMS     = test
-test_SOURCES     = test.cpp
+test_SOURCES     = test.cpp sortio.cpp sortio.h
 
-#INCLUDES = $(GSL_CFLAGS)
-#LIBS     = $(GSL_LIBS)
+INCLUDES = $(GRVY_CFLAGS)
+LIBS     = $(GRVY_LIBS)
