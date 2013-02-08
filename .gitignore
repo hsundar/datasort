@@ -1,1 +1,10 @@
 *~
+.deps
+Makefile
+Makefile.in
+install.sh
+stamp-h1
+missing
+config.h
+config.h.in
+aclocal.m4
