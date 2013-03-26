@@ -6,12 +6,13 @@
 
 sortio_Class::sortio_Class() 
 {
-  initialized       = 0;
-  master            = false;
-  override_numfiles = false;
-  nio_tasks         = 0;
-  num_records_read  = 0;
-  basename          = "part";
+  initialized        = 0;
+  master             = false;
+  override_numfiles  = false;
+  random_read_offset = false;
+  nio_tasks          = 0;
+  num_records_read   = 0;
+  basename           = "part";
 
   setvbuf( stdout, NULL, _IONBF, 0 );
 }
@@ -65,30 +66,39 @@ void sortio_Class::Summarize()
 
   // global performance
 
-  int num_records_global;
+  unsigned long num_records_global;
+  double time_best;
   double time_worst;
+  double time_avg;
   double aggregate_rate;
 
-  MPI_Allreduce(&num_records_read,&num_records_global,1,MPI_INTEGER,MPI_SUM,IO_COMM);
+  MPI_Allreduce(&num_records_read,&num_records_global,1,MPI_UNSIGNED_LONG,MPI_SUM,IO_COMM);
   MPI_Allreduce(&time_local,&time_worst,    1,MPI_DOUBLE,MPI_MAX,IO_COMM);
+  MPI_Allreduce(&time_local,&time_best,     1,MPI_DOUBLE,MPI_MIN,IO_COMM);
+  MPI_Allreduce(&time_local,&time_avg,      1,MPI_DOUBLE,MPI_SUM,IO_COMM);
   MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
+
+  fflush(NULL);
 
   if(master)
     {
-      fflush(NULL);
-      double total_gbs = 1.0*num_records_global*REC_SIZE/(1000*1000*1000);
+      time_avg /= nio_tasks;
+      double total_gbs = 1.0*num_records_global*REC_SIZE/(1.0*1000*1000*1000);
 
       printf("\n");
       printf("[sortio] --- Global Read Performance ----------- \n");
-      printf("[sortio] --> Total records read = %i\n",num_records_global);
+      printf("[sortio] --> Total records read = %li\n",num_records_global);
       if(total_gbs < 1000)
 	printf("[sortio] --> Total amount of data read  = %7.3f (GBs)\n",total_gbs);
       else
 	printf("[sortio] --> Total amount of data read  = %7.3f (TBs)\n",total_gbs/1000.0);
 
       printf("\n");
-      printf("worst time from task = %f\n",time_worst);
+      printf("worst time from read task = %f\n",time_worst);
+      printf("best  time from read task = %f\n",time_best);
+      printf("avg.  time from read task = %f\n",time_avg);
       printf("[sortio] --> Global    read performance = %7.3f (GB/sec)\n",total_gbs/time_worst);
+      printf("[sortio] --> Average   read performance = %7.3f (GB/sec)\n",total_gbs/time_avg);
       printf("[sortio] --> Aggregate read performance = %7.3f (GB/sec)\n",aggregate_rate);
     } 
   
@@ -131,7 +141,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   int tmp_string_size = indir.size() + 1;
   char *tmp_string    = NULL;
 
-  random_read_offset  = true;
+  //  random_read_offset  = true;
 
   MPI_Bcast(&num_files_total,1,MPI_INTEGER,0,IO_COMM);
   MPI_Bcast(&tmp_string_size,1,MPI_INTEGER,0,IO_COMM);
@@ -199,7 +209,7 @@ void sortio_Class::ReadFiles()
 	      if(fp_offset != NULL)
 		{
 		  fscanf(fp_offset,"%i",&offset);
-		  offset++;
+		  offset += 17;
 		  fclose(fp_offset);
 		}
 	      else
