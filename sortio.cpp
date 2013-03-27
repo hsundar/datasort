@@ -315,17 +315,13 @@ void sortio_Class::SplitComm(MPI_Comm COMM_IN)
 
   grvy_printf(DEBUG,"[sortio]: Detected global Rank %i -> %s\n",num_local,hostname);
 
-#if 0
-  char hostnames_ALL[1024][MPI_MAX_PROCESSOR_NAME];
-#else
-   char *hostnames_ALL;
+  char *hostnames_ALL;
 
   if(num_local == 0) 
     {
       hostnames_ALL = (char *)malloc(num_procs*MPI_MAX_PROCESSOR_NAME*sizeof(char));
       assert(hostnames_ALL != NULL);
     }
-#endif
 
   MPI_Gather(&hostname[0],      MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
 	     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,COMM_IN);
@@ -335,25 +331,24 @@ void sortio_Class::SplitComm(MPI_Comm COMM_IN)
 
   if(num_local == 0)
     {
-      //printf("all2 = %s\n",hostnames_ALL2);
-      //      printf("all2a = %s\n",&hostnames_ALL2[MPI_MAX_PROCESSOR_NAME]);
       std::map<std::string,int> uniq_hosts;
 
       for(int i=0;i<num_procs;i++)
 	{
-	  std::string host;
-	  host.assign(&hostnames_ALL[i*MPI_MAX_PROCESSOR_NAME],MPI_MAX_PROCESSOR_NAME);
-
-	  grvy_printf(INFO,"[sortio]: parsed host = %s\n",host.c_str());
-
+	  std::string host = &hostnames_ALL[i*MPI_MAX_PROCESSOR_NAME];
+	  grvy_printf(DEBUG,"[sortio]: parsed host = %s\n",host.c_str());
 	  uniq_hosts[host]++;
 	}
-    }
 
-#if 0
-  if(num_local == 0)
-    free(hostnames_ALL);
-#endif
+      free(hostnames_ALL);
+
+      std::map<std::string,int>::iterator it;
+
+      for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
+	{
+	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)\n",(*it).first.c_str(),(*it).second);
+	}
+    }
 
   return;
 }
