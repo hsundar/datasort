@@ -6,13 +6,14 @@
 
 sortio_Class::sortio_Class() 
 {
-  initialized        = 0;
-  master             = false;
-  override_numfiles  = false;
-  random_read_offset = false;
-  nio_tasks          = 0;
-  num_records_read   = 0;
-  basename           = "part";
+  initialized               = false;
+  master                    = false;
+  override_numfiles         = false;
+  random_read_offset        = false;
+  mpi_initialized_by_sortio = false;
+  nio_tasks                 = 0;
+  num_records_read          = 0;
+  basename                  = "part";
 
   setvbuf( stdout, NULL, _IONBF, 0 );
 }
@@ -113,6 +114,22 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   gt.Init("Sort IO Subsystem");
   gt.BeginTimer("Initialize");
 
+  // Init MPI if necessary
+
+  int is_mpi_initialized;
+  MPI_Initialized(&is_mpi_initialized);
+
+  if(!is_mpi_initialized)
+    {
+      MPI_Init(NULL,NULL);
+      mpi_initialized_by_sortio = true;
+    }
+
+  MPI_Comm_size(COMM,&num_tasks);
+  MPI_Comm_rank(COMM,&num_local);
+
+  GLOB_COMM = COMM;
+
   IO_COMM = COMM;
 
   MPI_Comm_size (IO_COMM, &nio_tasks);
@@ -120,7 +137,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   // Read I/O runtime controls
 
-  if(io_rank == 0)
+  if(num_local == 0)
     {
       master = true;
       GRVY::GRVY_Input_Class iparse;
@@ -300,17 +317,13 @@ void sortio_Class::ReadFiles()
 // (3) Data Sort Group     ( SORT_COMM )
 // --------------------------------------------------------------------
 
-void sortio_Class::SplitComm(MPI_Comm COMM_IN)
+void sortio_Class::SplitComm()
 {
-  assert(initialized);
-
-  int num_procs, num_local;
-
-  MPI_Comm_size (COMM_IN, &num_procs);
-  MPI_Comm_rank (COMM_IN, &num_local);
+  assert(initialized == true );
 
   char hostname[MPI_MAX_PROCESSOR_NAME];
   int len;
+
   MPI_Get_processor_name(hostname, &len);
 
   grvy_printf(DEBUG,"[sortio]: Detected global Rank %i -> %s\n",num_local,hostname);
@@ -319,13 +332,12 @@ void sortio_Class::SplitComm(MPI_Comm COMM_IN)
 
   if(num_local == 0) 
     {
-      hostnames_ALL = (char *)malloc(num_procs*MPI_MAX_PROCESSOR_NAME*sizeof(char));
+      hostnames_ALL = (char *)malloc(num_tasks*MPI_MAX_PROCESSOR_NAME*sizeof(char));
       assert(hostnames_ALL != NULL);
     }
 
   MPI_Gather(&hostname[0],      MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
-	     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,COMM_IN);
-
+	     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,GLOB_COMM);
 
   // Determine unique hostnames -> rank mapping
 
@@ -333,7 +345,7 @@ void sortio_Class::SplitComm(MPI_Comm COMM_IN)
     {
       std::map<std::string,int> uniq_hosts;
 
-      for(int i=0;i<num_procs;i++)
+      for(int i=0;i<num_tasks;i++)
 	{
 	  std::string host = &hostnames_ALL[i*MPI_MAX_PROCESSOR_NAME];
 	  grvy_printf(DEBUG,"[sortio]: parsed host = %s\n",host.c_str());
@@ -346,7 +358,7 @@ void sortio_Class::SplitComm(MPI_Comm COMM_IN)
 
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
-	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)\n",(*it).first.c_str(),(*it).second);
+	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second);
 	}
     }
 

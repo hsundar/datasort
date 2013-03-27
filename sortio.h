@@ -24,10 +24,10 @@ class sortio_Class {
   sortio_Class();
  ~sortio_Class();
 
-  void Initialize(std::string inputfile, MPI_Comm IO_COMM);
+  void Initialize(std::string inputfile, MPI_Comm IN_COMM);
   void Override_nFiles(int nfiles);
   void ReadFiles(); 
-  void SplitComm(MPI_Comm COMM);
+  void SplitComm();
   void Summarize();
 
  private:
@@ -35,11 +35,19 @@ class sortio_Class {
   bool initialized;		   // class initialized?
   bool override_numfiles;          // Override num_files setting?
   bool random_read_offset;         // Randomly change rank ordering for read to minimize cache effects?
+  bool mpi_initialized_by_sortio;  // did we have to call MPI_Init()?
   int  num_files_total;		   // total # of input files to sort
+
   unsigned long num_records_read;  // total # of records read locally
   std::string basename;		   // input file basename
   std::string indir;		   // input directory
   GRVY::GRVY_Timer_Class gt;       // performance timer
+
+  // Global MPI info (for GLOB_COMM)
+
+  int  num_tasks;		   // total # of MPI tasks available to the class
+  int  num_local;		   // global MPI rank for clas GLOB_COMM
+  MPI_Comm GLOB_COMM;		   // global MPI communicator provided as input to the class
 
   // Dedicated I/O tasks 
 

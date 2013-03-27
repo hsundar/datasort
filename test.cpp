@@ -10,10 +10,6 @@ int main(int argc, char *argv[], char *env[])
   int num_procs;		// total # of MPI tasks available
   int num_local;		// rank of local MPI task
 
-  MPI_Init      (&argc, &argv);
-  MPI_Comm_size (MPI_COMM_WORLD, &num_procs);
-  MPI_Comm_rank (MPI_COMM_WORLD, &num_local);
-
   sortio_Class sort_IO;		// IO subysystem 
 
   // [optional]: set total # of files to read via command-line;
@@ -23,12 +19,13 @@ int main(int argc, char *argv[], char *env[])
     sort_IO.Override_nFiles(atoi(argv[1]));
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
-  sort_IO.SplitComm(MPI_COMM_WORLD);
+  sort_IO.SplitComm();
 
   MPI_Finalize(); return 0;
 
   GRVY::GRVY_Input_Class iparse;
 
+#if 0
   if(num_local == 0)
     {
       int flag;
@@ -44,6 +41,7 @@ int main(int argc, char *argv[], char *env[])
 
   sort_IO.ReadFiles();
   sort_IO.Summarize();
+#endif
 
   MPI_Finalize();
   return 0;
