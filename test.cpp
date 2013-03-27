@@ -1,7 +1,3 @@
-#include "mpi.h"
-#include <stdio.h>
-#include <grvy.h>
-#include <assert.h>
 #include "sortio.h"
 
 int main(int argc, char *argv[], char *env[])
@@ -34,8 +30,6 @@ int main(int argc, char *argv[], char *env[])
 
       assert(iparse.Open    ("input.dat")                   != 0);
       assert(iparse.Read_Var("sortio/num_tasks",&nio_tasks) != 0);
-
-      //printf("nio_tasks = %i\n",nio_tasks);
       assert(nio_tasks <= num_procs);
     }
 

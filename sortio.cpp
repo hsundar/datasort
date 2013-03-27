@@ -125,6 +125,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       mpi_initialized_by_sortio = true;
     }
 
+  // Query global MPI environment
+
   MPI_Comm_size(COMM,&num_tasks);
   MPI_Comm_rank(COMM,&num_local);
 
@@ -330,7 +332,7 @@ void sortio_Class::SplitComm()
 
   char *hostnames_ALL;
 
-  if(num_local == 0) 
+  if(master)
     {
       hostnames_ALL = (char *)malloc(num_tasks*MPI_MAX_PROCESSOR_NAME*sizeof(char));
       assert(hostnames_ALL != NULL);
@@ -339,28 +341,85 @@ void sortio_Class::SplitComm()
   MPI_Gather(&hostname[0],      MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
 	     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,GLOB_COMM);
 
-  // Determine unique hostnames -> rank mapping
+  // hack for testing
 
-  if(num_local == 0)
+  const int num_io_hosts = 2;
+
+  if(master)
     {
-      std::map<std::string,int> uniq_hosts;
+      // Determine unique hostnames -> rank mapping
+
+      std::map<std::string,std::vector<int> > uniq_hosts;
 
       for(int i=0;i<num_tasks;i++)
 	{
 	  std::string host = &hostnames_ALL[i*MPI_MAX_PROCESSOR_NAME];
-	  grvy_printf(DEBUG,"[sortio]: parsed host = %s\n",host.c_str());
-	  uniq_hosts[host]++;
+ 	  grvy_printf(DEBUG,"[sortio]: parsed host = %s\n",host.c_str());
+	  uniq_hosts[host].push_back(i);
 	}
 
       free(hostnames_ALL);
 
-      std::map<std::string,int>::iterator it;
+      std::map<std::string,std::vector<int> >::iterator it;
+
+      std::vector<int> io_comm_ranks;
+      std::vector<int> xfer_comm_ranks;
+      std::vector<int> sort_comm_ranks;
+      int count = 0;
+
+      // Flag tasks for different work groups
+
+      assert(num_io_hosts < num_tasks);
 
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
-	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second);
+	  // Logic: we use the first num_io_hosts for IO (and we
+	  // currently assume 1 MPI task per IO host). We use all
+	  // remaining hosts for SORT with 1 MPI task per sort host
+	  // dedicated for data XFER and all remaining tasks used for
+	  // sorting.
+
+	  if(count < num_io_hosts)
+	    {
+	      io_comm_ranks.push_back((*it).second[0]);
+	      xfer_comm_ranks.push_back((*it).second[0]);
+	    }
+	  else
+	    {
+	      xfer_comm_ranks.push_back((*it).second[0]);
+	      for(int proc=1;proc<(*it).second.size();proc++)
+		sort_comm_ranks.push_back((*it).second[proc]);
+	    }
+	    
+	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
+	  count++;
 	}
+
+      // Create desired MPI sub communicators based on runtime settings
+
+      grvy_printf(INFO,"[sortio]:\n");
+      grvy_printf(INFO,"[sortio]: Total number of hosts available = %4i\n",uniq_hosts.size());
+      grvy_printf(INFO,"[sortio]: --> Number of   IO hosts        = %4i\n",num_io_hosts);
+      grvy_printf(INFO,"[sortio]: --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-num_io_hosts);
+      grvy_printf(INFO,"[sortio]:\n");
+      grvy_printf(INFO,"[sortio]: Total number of MPI tasks available = %i\n",num_tasks);
+      grvy_printf(INFO,"[sortio]: Work Task Division:\n");
+      grvy_printf(INFO,"[sortio]: --> Number of IO   MPI tasks = %4i\n",io_comm_ranks.size());
+      grvy_printf(INFO,"[sortio]: --> Number of XFER MPI tasks = %4i\n",xfer_comm_ranks.size());
+      grvy_printf(INFO,"[sortio]: --> Number of SORT MPI tasks = %4i\n",sort_comm_ranks.size());
+
     }
 
+  MPI_Group group_global;
+  MPI_Group group_io;
+
+  assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
+
+  // IO_COMM 
+
+
+
+  int count = 0;
+      
   return;
 }
