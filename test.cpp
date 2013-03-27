@@ -23,6 +23,9 @@ int main(int argc, char *argv[], char *env[])
     sort_IO.Override_nFiles(atoi(argv[1]));
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
+  sort_IO.SplitComm(MPI_COMM_WORLD);
+
+  MPI_Finalize(); return 0;
 
   GRVY::GRVY_Input_Class iparse;
 

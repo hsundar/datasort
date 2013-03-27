@@ -4,6 +4,7 @@
 //
 
 #include <string>
+#include <map>
 #include <cassert>
 #include <cstdlib>
 #include <ctime>
@@ -13,6 +14,9 @@
 #include "grvy.h"
 
 #define REC_SIZE 100
+#define INFO  GRVY_INFO
+#define DEBUG GRVY_DEBUG
+#define ERROR GRVY_INFO
 
 class sortio_Class {
 
@@ -23,7 +27,7 @@ class sortio_Class {
   void Initialize(std::string inputfile, MPI_Comm IO_COMM);
   void Override_nFiles(int nfiles);
   void ReadFiles(); 
-  void SplitComm(MPI_Comm INCOMM);
+  void SplitComm(MPI_Comm COMM);
   void Summarize();
 
  private:
