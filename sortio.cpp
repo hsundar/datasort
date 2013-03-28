@@ -345,6 +345,13 @@ void sortio_Class::SplitComm()
 
   const int num_io_hosts = 2;
 
+  std::vector<int> io_comm_ranks; // 
+  //  int *io_comm_ranks;		  // POD type for io_ranks
+  std::vector<int> xfer_comm_ranks;
+  std::vector<int> sort_comm_ranks;
+
+  //  io_comm_ranks = new int [num_io_hosts];
+
   if(master)
     {
       // Determine unique hostnames -> rank mapping
@@ -362,9 +369,7 @@ void sortio_Class::SplitComm()
 
       std::map<std::string,std::vector<int> >::iterator it;
 
-      std::vector<int> io_comm_ranks;
-      std::vector<int> xfer_comm_ranks;
-      std::vector<int> sort_comm_ranks;
+
       int count = 0;
 
       // Flag tasks for different work groups
@@ -381,7 +386,8 @@ void sortio_Class::SplitComm()
 
 	  if(count < num_io_hosts)
 	    {
-	      io_comm_ranks.push_back((*it).second[0]);
+	      //io_comm_ranks[count] = (*it).second[0];
+	      io_comm_ranks.push_back  ((*it).second[0]);
 	      xfer_comm_ranks.push_back((*it).second[0]);
 	    }
 	  else
@@ -395,6 +401,22 @@ void sortio_Class::SplitComm()
 	  count++;
 	}
 
+      //      nio_tasks   = num_io_hosts;
+      nio_tasks   = io_comm_ranks.size();
+      nxfer_tasks = xfer_comm_ranks.size();
+      nsort_tasks = sort_comm_ranks.size();
+
+      assert(nxfer_tasks > 0);
+      assert(nsort_tasks > 0);
+
+      // Save io_ranks as POD for distribution to other tasks
+
+      //      int *io_ranks;
+      //      io_ranks = new int [num_io_hosts];
+
+      //      for(int j=0;j<num_io_hosts;j++)
+      //	io_ranks[j] = io_comm_ranks[j];
+
       // Create desired MPI sub communicators based on runtime settings
 
       grvy_printf(INFO,"[sortio]:\n");
@@ -404,21 +426,63 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio]:\n");
       grvy_printf(INFO,"[sortio]: Total number of MPI tasks available = %i\n",num_tasks);
       grvy_printf(INFO,"[sortio]: Work Task Division:\n");
-      grvy_printf(INFO,"[sortio]: --> Number of IO   MPI tasks = %4i\n",io_comm_ranks.size());
-      grvy_printf(INFO,"[sortio]: --> Number of XFER MPI tasks = %4i\n",xfer_comm_ranks.size());
-      grvy_printf(INFO,"[sortio]: --> Number of SORT MPI tasks = %4i\n",sort_comm_ranks.size());
+      grvy_printf(INFO,"[sortio]: --> Number of IO   MPI tasks = %4i\n",nio_tasks);
+      grvy_printf(INFO,"[sortio]: --> Number of XFER MPI tasks = %4i\n",nxfer_tasks);
+      grvy_printf(INFO,"[sortio]: --> Number of SORT MPI tasks = %4i\n",nsort_tasks);
 
+    }
+
+  // Build up new MPI task groups
+
+  //  MPI_Bcast(io_comm_ranks,num_tasks,MPI_INTEGER,0,GLOB_COMM);
+  MPI_Bcast(&nio_tasks,  1,MPI_INTEGER,0,GLOB_COMM);
+  MPI_Bcast(&nxfer_tasks,1,MPI_INTEGER,0,GLOB_COMM);
+  MPI_Bcast(&nsort_tasks,1,MPI_INTEGER,0,GLOB_COMM);
+
+  if(!master)
+    {
+      io_comm_ranks.reserve  (nio_tasks);
+      xfer_comm_ranks.reserve(nxfer_tasks);
+      sort_comm_ranks.reserve(nsort_tasks);
+    }
+
+  int tmp[100];
+
+  MPI_Bcast(  io_comm_ranks.data(),  nio_tasks,MPI_INTEGER,0,GLOB_COMM);
+  MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM);
+  MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM);
+
+  if(num_local == 1)
+    {
+      for(int i=0;i<nio_tasks;i++)
+	grvy_printf(INFO,"  io task recieved = %i\n",io_comm_ranks[i]);
+      grvy_printf(INFO,"\n");
+
+      for(int i=0;i<nxfer_tasks;i++)
+	grvy_printf(INFO,"xfer task recieved = %i\n",xfer_comm_ranks[i]);
+      grvy_printf(INFO,"\n");
+      
+      for(int i=0;i<nsort_tasks;i++)
+	grvy_printf(INFO,"sort task recieved = %i\n",sort_comm_ranks[i]);
     }
 
   MPI_Group group_global;
   MPI_Group group_io;
+  MPI_Group group_xfer;
+  MPI_Group group_sort;
 
   assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
 
   // IO_COMM 
 
+  assert(MPI_Group_incl(group_global,num_io_hosts,io_comm_ranks.data(),&group_io) == MPI_SUCCESS);
 
+  // XFER_COMM 
 
+  assert(MPI_Group_incl(group_global,num_io_hosts,io_comm_ranks.data(),&group_io) == MPI_SUCCESS);
+  
+  //  MPI_Comm_create(GLOB_COMM,group_io,&m_pimpl->MPI_COMM_OCORE);
+  
   int count = 0;
       
   return;
