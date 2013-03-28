@@ -151,10 +151,10 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/num_io_hosts",&num_io_hosts) != 0);
       assert( iparse.Read_Var("sortio/input_dir",&indir)           != 0);
 
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: Runtime input parsing:");
-      grvy_printf(INFO,"[sortio]: --> total number of files to read = %i\n",num_files_total);
-      grvy_printf(INFO,"[sortio]: --> input directory               = %s\n",indir.c_str());
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] Runtime input parsing:");
+      grvy_printf(INFO,"[sortio] --> total number of files to read = %i\n",num_files_total);
+      grvy_printf(INFO,"[sortio] --> input directory               = %s\n",indir.c_str());
     }
 
   // Broadcast necessary runtime controls to all tasks
@@ -331,7 +331,7 @@ void sortio_Class::SplitComm()
 
   MPI_Get_processor_name(hostname, &len);
 
-  grvy_printf(DEBUG,"[sortio]: Detected global Rank %i -> %s\n",num_local,hostname);
+  grvy_printf(DEBUG,"[sortio] Detected global Rank %i -> %s\n",num_local,hostname);
 
   char *hostnames_ALL;
 
@@ -358,7 +358,7 @@ void sortio_Class::SplitComm()
       for(int i=0;i<num_tasks;i++)
 	{
 	  std::string host = &hostnames_ALL[i*MPI_MAX_PROCESSOR_NAME];
- 	  grvy_printf(DEBUG,"[sortio]: parsed host = %s\n",host.c_str());
+ 	  grvy_printf(DEBUG,"[sortio] parsed host = %s\n",host.c_str());
 	  uniq_hosts[host].push_back(i);
 	}
 
@@ -373,8 +373,8 @@ void sortio_Class::SplitComm()
       assert (num_io_hosts > 0);
       assert (num_io_hosts < num_tasks);
 
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: Rank per host detection:\n");
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] Rank per host detection:\n");
 
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
@@ -396,7 +396,7 @@ void sortio_Class::SplitComm()
 		sort_comm_ranks.push_back((*it).second[proc]);
 	    }
 	    
-	  grvy_printf(INFO,"[sortio]:    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
+	  grvy_printf(INFO,"[sortio]    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
 	  count++;
 	}
 
@@ -412,15 +412,15 @@ void sortio_Class::SplitComm()
 
       // Create desired MPI sub communicators based on runtime settings
 
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: Total number of hosts available = %4i\n",uniq_hosts.size());
-      grvy_printf(INFO,"[sortio]: --> Number of   IO hosts        = %4i\n",num_io_hosts);
-      grvy_printf(INFO,"[sortio]: --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-num_io_hosts);
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: Work Task Division:\n");
-      grvy_printf(INFO,"[sortio]: --> Number of IO   MPI tasks = %4i\n",nio_tasks);
-      grvy_printf(INFO,"[sortio]: --> Number of XFER MPI tasks = %4i\n",nxfer_tasks);
-      grvy_printf(INFO,"[sortio]: --> Number of SORT MPI tasks = %4i\n",nsort_tasks);
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] Total number of hosts available = %4i\n",uniq_hosts.size());
+      grvy_printf(INFO,"[sortio] --> Number of   IO hosts        = %4i\n",num_io_hosts);
+      grvy_printf(INFO,"[sortio] --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-num_io_hosts);
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] Work Task Division:\n");
+      grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks = %4i\n",nio_tasks);
+      grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks = %4i\n",nxfer_tasks);
+      grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks = %4i\n",nsort_tasks);
 
     }
 
@@ -490,12 +490,12 @@ void sortio_Class::SplitComm()
 
   if(master)
     {
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: MPI WorkGroup Summary (%i hosts, %i MPI tasks)\n",uniq_hosts.size(),num_tasks);
-      grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
-      grvy_printf(INFO,"[sortio]: [Hostname]  [Global Rank]  [IO Rank]  [XFER Rank]  [SORT Rank] \n");
-      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] MPI WorkGroup Summary (%i hosts, %i MPI tasks)\n",uniq_hosts.size(),num_tasks);
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio] [Hostname]  [Global Rank]  [IO Rank]  [XFER Rank]  [SORT Rank] \n");
+      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
     }
 
   int ranks_tmp[3];
@@ -505,7 +505,7 @@ void sortio_Class::SplitComm()
     {
       if(master)
 	{
-	  grvy_printf(INFO,"[sortio]:  %.8s       %.6i ",&hostnames_ALL[proc*MPI_MAX_PROCESSOR_NAME],proc);
+	  grvy_printf(INFO,"[sortio]  %.8s       %.6i ",&hostnames_ALL[proc*MPI_MAX_PROCESSOR_NAME],proc);
 	}
 
       if(master && (proc == 0) )
@@ -553,8 +553,8 @@ void sortio_Class::SplitComm()
 
   if(master)
     {
-      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
-      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
     }
   
   free(hostnames_ALL);  
