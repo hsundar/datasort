@@ -25,6 +25,8 @@ sortio_Class::sortio_Class()
 
 sortio_Class::~sortio_Class() 
 {
+  if(mpi_initialized_by_sortio)
+    MPI_Finalize();
 }
 
 void sortio_Class::Override_nFiles(int nfiles)
@@ -126,7 +128,9 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   if(!is_mpi_initialized)
     {
-      MPI_Init(NULL,NULL);
+      int provided;
+
+      MPI_Init_thread(NULL,NULL,MPI_THREAD_FUNNELED,&provided);
       mpi_initialized_by_sortio = true;
     }
 
@@ -189,6 +193,10 @@ void sortio_Class::ReadFiles()
 {
 
   assert(initialized);
+
+  if(!is_io_task)
+    return;
+
   gt.BeginTimer("Raw Read");
   
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;

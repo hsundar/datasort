@@ -32,11 +32,12 @@ int main(int argc, char *argv[], char *env[])
       assert(nio_tasks <= num_procs);
     }
 
-  sort_IO.ReadFiles();
-  sort_IO.Summarize();
 #endif
 
-  MPI_Finalize();
+    sort_IO.ReadFiles();  
+
+  //  sort_IO.Summarize();
+
   return 0;
 }
 
