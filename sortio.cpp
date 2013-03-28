@@ -137,11 +137,6 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   GLOB_COMM = COMM;
 
-  IO_COMM = COMM;
-
-  MPI_Comm_size (IO_COMM, &nio_tasks);
-  MPI_Comm_rank (IO_COMM, &io_rank  );
-
   // Read I/O runtime controls
 
   if(num_local == 0)
@@ -149,41 +144,44 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       master = true;
       GRVY::GRVY_Input_Class iparse;
 
-      printf("[sortio]: # of MPI reader tasks = %4i\n",nio_tasks);
-
-      assert(iparse.Open    ("input.dat")                         != 0);
+      assert( iparse.Open    ("input.dat")                         != 0);
       if(!override_numfiles)
-	assert(iparse.Read_Var("sortio/num_files",&num_files_total) != 0);
-      assert(iparse.Read_Var("sortio/input_dir",&indir)           != 0);
+	assert( iparse.Read_Var("sortio/num_files",&num_files_total) != 0);
 
-      printf("[sortio]: --> total number of files to read = %i\n",num_files_total);
-      printf("[sortio]: --> input directory               = %s\n",indir.c_str());
+      assert( iparse.Read_Var("sortio/num_io_hosts",&num_io_hosts) != 0);
+      assert( iparse.Read_Var("sortio/input_dir",&indir)           != 0);
+
+      grvy_printf(INFO,"[sortio]:\n");
+      grvy_printf(INFO,"[sortio]: Runtime input parsing:");
+      grvy_printf(INFO,"[sortio]: --> total number of files to read = %i\n",num_files_total);
+      grvy_printf(INFO,"[sortio]: --> input directory               = %s\n",indir.c_str());
     }
 
-  // Broadcast necessary runtime controls to I/O children
+  // Broadcast necessary runtime controls to all tasks
 
   int tmp_string_size = indir.size() + 1;
   char *tmp_string    = NULL;
 
   //  random_read_offset  = true;
 
-  MPI_Bcast(&num_files_total,1,MPI_INTEGER,0,IO_COMM);
-  MPI_Bcast(&tmp_string_size,1,MPI_INTEGER,0,IO_COMM);
+  assert( MPI_Bcast(&num_files_total,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(&tmp_string_size,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS);
   
   tmp_string = (char *)calloc(tmp_string_size,sizeof(char));
   strcpy(tmp_string,indir.c_str());
 
-  MPI_Bcast(tmp_string,tmp_string_size,MPI_CHAR,0,IO_COMM);
+  assert (MPI_Bcast(tmp_string,tmp_string_size,MPI_CHAR,0,COMM) == MPI_SUCCESS);
 
   if(!master)
     indir = tmp_string;
 
   free(tmp_string);
 
-  MPI_Barrier(IO_COMM);
+  MPI_Barrier(COMM);
 
   initialized = true;
   gt.EndTimer("Initialize");
+
   return; 
 }
 
@@ -346,9 +344,7 @@ void sortio_Class::SplitComm()
   assert (MPI_Gather(&hostname[0],     MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
 		     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,GLOB_COMM) == MPI_SUCCESS);
 
-  // hack for testing
-
-  const int num_io_hosts = 2;
+  //  const int num_io_hosts = 2;
 
   std::vector<int>   io_comm_ranks; 
   std::vector<int> xfer_comm_ranks;
@@ -374,7 +370,11 @@ void sortio_Class::SplitComm()
 
       // Flag tasks for different work groups
 
-      assert(num_io_hosts < num_tasks);
+      assert (num_io_hosts > 0);
+      assert (num_io_hosts < num_tasks);
+
+      grvy_printf(INFO,"[sortio]:\n");
+      grvy_printf(INFO,"[sortio]: Rank per host detection:\n");
 
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
@@ -396,7 +396,7 @@ void sortio_Class::SplitComm()
 		sort_comm_ranks.push_back((*it).second[proc]);
 	    }
 	    
-	  grvy_printf(INFO,"[sortio]: %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
+	  grvy_printf(INFO,"[sortio]:    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
 	  count++;
 	}
 
@@ -417,7 +417,6 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio]: --> Number of   IO hosts        = %4i\n",num_io_hosts);
       grvy_printf(INFO,"[sortio]: --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-num_io_hosts);
       grvy_printf(INFO,"[sortio]:\n");
-      grvy_printf(INFO,"[sortio]: Total number of MPI tasks available = %i\n",num_tasks);
       grvy_printf(INFO,"[sortio]: Work Task Division:\n");
       grvy_printf(INFO,"[sortio]: --> Number of IO   MPI tasks = %4i\n",nio_tasks);
       grvy_printf(INFO,"[sortio]: --> Number of XFER MPI tasks = %4i\n",nxfer_tasks);

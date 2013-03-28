@@ -17,11 +17,10 @@ int main(int argc, char *argv[], char *env[])
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();
 
-  MPI_Finalize(); return 0;
-
+#if 0
   GRVY::GRVY_Input_Class iparse;
 
-#if 0
+
   if(num_local == 0)
     {
       int flag;

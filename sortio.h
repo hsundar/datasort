@@ -37,6 +37,7 @@ class sortio_Class {
   bool random_read_offset;         // Randomly change rank ordering for read to minimize cache effects?
   bool mpi_initialized_by_sortio;  // did we have to call MPI_Init()?
   int  num_files_total;		   // total # of input files to sort
+  int  num_io_hosts;		   // total # of desired unique IO hosts
 
   unsigned long num_records_read;  // total # of records read locally
   std::string basename;		   // input file basename
