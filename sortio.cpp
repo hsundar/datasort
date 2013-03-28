@@ -345,12 +345,9 @@ void sortio_Class::SplitComm()
 
   const int num_io_hosts = 2;
 
-  std::vector<int> io_comm_ranks; // 
-  //  int *io_comm_ranks;		  // POD type for io_ranks
+  std::vector<int>   io_comm_ranks; 
   std::vector<int> xfer_comm_ranks;
   std::vector<int> sort_comm_ranks;
-
-  //  io_comm_ranks = new int [num_io_hosts];
 
   if(master)
     {
@@ -369,7 +366,6 @@ void sortio_Class::SplitComm()
 
       std::map<std::string,std::vector<int> >::iterator it;
 
-
       int count = 0;
 
       // Flag tasks for different work groups
@@ -386,7 +382,6 @@ void sortio_Class::SplitComm()
 
 	  if(count < num_io_hosts)
 	    {
-	      //io_comm_ranks[count] = (*it).second[0];
 	      io_comm_ranks.push_back  ((*it).second[0]);
 	      xfer_comm_ranks.push_back((*it).second[0]);
 	    }
@@ -401,21 +396,14 @@ void sortio_Class::SplitComm()
 	  count++;
 	}
 
-      //      nio_tasks   = num_io_hosts;
       nio_tasks   = io_comm_ranks.size();
       nxfer_tasks = xfer_comm_ranks.size();
       nsort_tasks = sort_comm_ranks.size();
 
+      assert(nio_tasks   > 0);
       assert(nxfer_tasks > 0);
+      assert(nxfer_tasks > nio_tasks);
       assert(nsort_tasks > 0);
-
-      // Save io_ranks as POD for distribution to other tasks
-
-      //      int *io_ranks;
-      //      io_ranks = new int [num_io_hosts];
-
-      //      for(int j=0;j<num_io_hosts;j++)
-      //	io_ranks[j] = io_comm_ranks[j];
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -434,7 +422,6 @@ void sortio_Class::SplitComm()
 
   // Build up new MPI task groups
 
-  //  MPI_Bcast(io_comm_ranks,num_tasks,MPI_INTEGER,0,GLOB_COMM);
   MPI_Bcast(&nio_tasks,  1,MPI_INTEGER,0,GLOB_COMM);
   MPI_Bcast(&nxfer_tasks,1,MPI_INTEGER,0,GLOB_COMM);
   MPI_Bcast(&nsort_tasks,1,MPI_INTEGER,0,GLOB_COMM);
@@ -473,17 +460,15 @@ void sortio_Class::SplitComm()
 
   assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
 
-  // IO_COMM 
+  // New groups for IO, XFER, and SORT
 
-  assert(MPI_Group_incl(group_global,num_io_hosts,io_comm_ranks.data(),&group_io) == MPI_SUCCESS);
+  assert(MPI_Group_incl(group_global,   nio_tasks,   io_comm_ranks.data(),   &group_io) == MPI_SUCCESS);
+  assert(MPI_Group_incl(group_global, nxfer_tasks, xfer_comm_ranks.data(), &group_xfer) == MPI_SUCCESS);
+  assert(MPI_Group_incl(group_global, nsort_tasks, xfer_comm_ranks.data(), &group_sort) == MPI_SUCCESS);
 
-  // XFER_COMM 
-
-  assert(MPI_Group_incl(group_global,num_io_hosts,io_comm_ranks.data(),&group_io) == MPI_SUCCESS);
+  MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM);
+  MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM);
+  MPI_Comm_create(GLOB_COMM, group_sort, &SORT_COMM);
   
-  //  MPI_Comm_create(GLOB_COMM,group_io,&m_pimpl->MPI_COMM_OCORE);
-  
-  int count = 0;
-      
   return;
 }
