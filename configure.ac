@@ -11,9 +11,13 @@ AC_CONFIG_HEADERS([config.h])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
+AC_LANG([C])
+ACX_MPI([CC="$MPICC"], AC_MSG_ERROR([Could not find MPI C compiler support]))
 AC_LANG([C++])
-ACX_MPI([HAVE_MPI=1 CXX="$MPICXX" AC_DEFINE(HAVE_MPI,1,[Define if MPI is available])],
+ACX_MPI([HAVE_MPI=1 CXX="$MPICXX" CC="$MPICC" AC_DEFINE(HAVE_MPI,1,[Define if MPI is available])],
 		    AC_MSG_ERROR([Could not find MPI C++ compiler support]))
+
+AX_OPENMP([], AC_MSG_ERROR([Could not detect required OpenMP support]))
 
 # Checks for libraries.
 

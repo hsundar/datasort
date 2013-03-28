@@ -13,6 +13,10 @@
 #include "mpi.h"
 #include "grvy.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #define REC_SIZE 100
 #define INFO  GRVY_INFO
 #define DEBUG GRVY_DEBUG

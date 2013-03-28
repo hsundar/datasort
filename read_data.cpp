@@ -13,11 +13,40 @@ void sortio_Class::ReadFiles()
 
   assert(initialized);
 
+  // This return only operates on IO_tasks
+
   if(!is_io_task)
     return;
 
   gt.BeginTimer("Raw Read");
-  
+
+  // Initialize threading environment
+
+  const int num_io_threads_per_host = 2;
+  omp_set_num_threads(num_io_threads_per_host);
+
+#pragma omp parallel
+#pragma omp sections
+  {
+
+    int thread_id;
+
+    #pragma omp section		// XFER thread
+    {
+      thread_id = omp_get_thread_num(); 
+      printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
+    }
+
+    #pragma omp section		// IO thread
+    {
+      thread_id = omp_get_thread_num(); 
+      printf("[%i]: thread id for child reader thread = %i\n",io_rank,thread_id);
+    }
+
+  }
+
+  return;
+
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
   int read_size;
 
