@@ -51,18 +51,21 @@ class sortio_Class {
 
   // Dedicated I/O tasks 
 
+  bool     is_io_task;             // MPI rank is an IO task?
   int      nio_tasks;		   // number of dedicated raw I/O tasks
   int      io_rank;		   // MPI rank of local I/O task
   MPI_Comm IO_COMM;		   // MPI communicator for raw I/O tasks
 
   // Data transfer 
 
+  bool     is_xfer_task;           // MPI rank is a data transfer task?
   int      nxfer_tasks;		   // number of dedicated data transfer tasks
   int      xfer_rank;		   // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		   // MPI communicator for data transfer tasks
 
   // Data sort 
 
+  bool     is_sort_task;           // MPI rank is a sort task?
   int      nsort_tasks;		   // number of dedicated sort tasks
   int      sort_rank;		   // MPI rank of local sort task
   MPI_Comm SORT_COMM;		   // MPI communicator for data sort tasks

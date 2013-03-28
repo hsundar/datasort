@@ -11,7 +11,12 @@ sortio_Class::sortio_Class()
   override_numfiles         = false;
   random_read_offset        = false;
   mpi_initialized_by_sortio = false;
+  is_io_task                = false;
+  is_xfer_task              = false;
+  is_sort_task              = false;
   nio_tasks                 = 0;
+  nxfer_tasks               = 0;
+  nsort_tasks               = 0;
   num_records_read          = 0;
   basename                  = "part";
 
@@ -338,7 +343,7 @@ void sortio_Class::SplitComm()
       assert(hostnames_ALL != NULL);
     }
 
-  assert (MPI_Gather(&hostname[0],      MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
+  assert (MPI_Gather(&hostname[0],     MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
 		     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,GLOB_COMM) == MPI_SUCCESS);
 
   // hack for testing
@@ -404,6 +409,7 @@ void sortio_Class::SplitComm()
       assert(nxfer_tasks > 0);
       assert(nxfer_tasks > nio_tasks);
       assert(nsort_tasks > 0);
+      assert(nxfer_tasks + nsort_tasks <= num_tasks);
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -469,6 +475,31 @@ void sortio_Class::SplitComm()
   assert( MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_sort, &SORT_COMM) == MPI_SUCCESS);
+
+  // is the local rank part of the new groups?
+
+  int rank_tmp;
+
+  assert( MPI_Group_rank( group_io, &rank_tmp) == MPI_SUCCESS);
+  if(rank_tmp != MPI_UNDEFINED)
+    is_io_task = true;
+
+  assert( MPI_Group_rank( group_xfer, &rank_tmp) == MPI_SUCCESS);
+  if(rank_tmp != MPI_UNDEFINED)
+    is_xfer_task = true;
+
+  assert( MPI_Group_rank( group_sort, &rank_tmp) == MPI_SUCCESS);
+  if(rank_tmp != MPI_UNDEFINED)
+    is_sort_task = true;
+
+  //  cache the new communicator ranks...
+
+  if(is_io_task)
+    assert( MPI_Comm_rank(IO_COMM,&io_rank) == MPI_SUCCESS);
+  if(is_xfer_task)
+    assert( MPI_Comm_rank(XFER_COMM,&xfer_rank) == MPI_SUCCESS);
+  if(is_sort_task)
+    assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
   
   return;
 }
