@@ -367,7 +367,7 @@ void sortio_Class::SplitComm()
 	  uniq_hosts[host].push_back(i);
 	}
 
-      free(hostnames_ALL);
+
 
       std::map<std::string,std::vector<int> >::iterator it;
 
@@ -470,7 +470,7 @@ void sortio_Class::SplitComm()
 
   assert( MPI_Group_incl(group_global,   nio_tasks,   io_comm_ranks.data(),   &group_io) == MPI_SUCCESS);
   assert( MPI_Group_incl(group_global, nxfer_tasks, xfer_comm_ranks.data(), &group_xfer) == MPI_SUCCESS);
-  assert( MPI_Group_incl(group_global, nsort_tasks, xfer_comm_ranks.data(), &group_sort) == MPI_SUCCESS);
+  assert( MPI_Group_incl(group_global, nsort_tasks, sort_comm_ranks.data(), &group_sort) == MPI_SUCCESS);
 
   assert( MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM) == MPI_SUCCESS);
@@ -500,6 +500,79 @@ void sortio_Class::SplitComm()
     assert( MPI_Comm_rank(XFER_COMM,&xfer_rank) == MPI_SUCCESS);
   if(is_sort_task)
     assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
+
+  // summarize the config (data printed from master rank to make the output easy on 
+  // the eyes for the time being)
+
+  if(master)
+    {
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio]: MPI WorkGroup Summary\n");
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio]: [Hostname]  [Global Rank]  [IO Rank]  [XFER Rank]  [SORT Rank] \n");
+      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+    }
+
+  int ranks_tmp[3];
+  MPI_Status status;
+
+  for(int proc=0;proc<num_tasks;proc++)
+    {
+      if(master)
+	{
+	  grvy_printf(INFO,"[sortio]:  %.8s       %.6i ",&hostnames_ALL[proc*MPI_MAX_PROCESSOR_NAME],proc);
+	}
+
+      if(master && (proc == 0) )
+	{
+	  if(is_io_task)
+	    printf("      %.6i",io_rank);
+	  else
+	    printf("      ------");
+
+	  if(is_xfer_task)
+	    printf("      %.6i",xfer_rank);
+	  else
+	    printf("      ------");
+
+	  if(is_sort_task)
+	    printf("      %.6i\n",sort_rank);
+	  else
+	    printf("      ------\n");
+
+	  continue;
+	}
+
+      if(num_local == proc)
+	{
+	  ranks_tmp[0] = (  is_io_task ) ?   io_rank : -1 ;
+	  ranks_tmp[1] = (is_xfer_task ) ? xfer_rank : -1 ;
+	  ranks_tmp[2] = (is_sort_task ) ? sort_rank : -1 ;
+	  assert (MPI_Send(ranks_tmp,3,MPI_INTEGER,0,1000,GLOB_COMM) == MPI_SUCCESS) ;
+	}
+      
+      if(master)
+	{
+	  assert (MPI_Recv(ranks_tmp,3,MPI_INTEGER,proc,1000,GLOB_COMM,&status) == MPI_SUCCESS) ;
+
+	  for(int i=0;i<3;i++)
+	    {
+	      if(ranks_tmp[i] >= 0)
+		printf("      %.6i",ranks_tmp[i]);
+	      else
+		printf("      ------");
+	    }
+	  grvy_printf(INFO,"\n");
+	}
+    }
+
+  if(master)
+    {
+      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
+    }
   
+  free(hostnames_ALL);  
   return;
 }
