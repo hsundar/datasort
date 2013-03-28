@@ -353,12 +353,11 @@ void sortio_Class::SplitComm()
   std::vector<int>   io_comm_ranks; 
   std::vector<int> xfer_comm_ranks;
   std::vector<int> sort_comm_ranks;
+  std::map<std::string,std::vector<int> > uniq_hosts;
 
   if(master)
     {
       // Determine unique hostnames -> rank mapping
-
-      std::map<std::string,std::vector<int> > uniq_hosts;
 
       for(int i=0;i<num_tasks;i++)
 	{
@@ -445,20 +444,6 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
-  if(num_local == 1)
-    {
-      for(int i=0;i<nio_tasks;i++)
-	grvy_printf(INFO,"  io task recieved = %i\n",io_comm_ranks[i]);
-      grvy_printf(INFO,"\n");
-
-      for(int i=0;i<nxfer_tasks;i++)
-	grvy_printf(INFO,"xfer task recieved = %i\n",xfer_comm_ranks[i]);
-      grvy_printf(INFO,"\n");
-      
-      for(int i=0;i<nsort_tasks;i++)
-	grvy_printf(INFO,"sort task recieved = %i\n",sort_comm_ranks[i]);
-    }
-
   MPI_Group group_global;
   MPI_Group group_io;
   MPI_Group group_xfer;
@@ -506,9 +491,9 @@ void sortio_Class::SplitComm()
 
   if(master)
     {
-      grvy_printf(INFO,"[sortio]\n");
-      grvy_printf(INFO,"[sortio]: MPI WorkGroup Summary\n");
-      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio]:\n");
+      grvy_printf(INFO,"[sortio]: MPI WorkGroup Summary (%i hosts, %i MPI tasks)\n",uniq_hosts.size(),num_tasks);
+      grvy_printf(INFO,"[sortio]:\n");
       grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
       grvy_printf(INFO,"[sortio]: [Hostname]  [Global Rank]  [IO Rank]  [XFER Rank]  [SORT Rank] \n");
       grvy_printf(INFO,"[sortio]: --------------------------------------------------------------\n");
