@@ -41,8 +41,8 @@ void sortio_Class::ReadFiles()
 
   std::vector<bool> region_flag(MAX_REGIONS,false);
 
-  // Initialize and launch threading environment for an asychronous data
-  // transfer mechanism
+  // Initialize and launch threading environment for an asychronous
+  // data transfer mechanism
 
   const int num_io_threads_per_host = 2;
   omp_set_num_threads(num_io_threads_per_host);
@@ -50,33 +50,15 @@ void sortio_Class::ReadFiles()
 #pragma omp parallel
 #pragma omp sections
   {
-
-    int thread_id;
-
     #pragma omp section		// XFER thread
     {
       Transfer_Tasks_Work();
-      usleep(3000000);
-      //thread_id = omp_get_thread_num(); 
-      //      printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
-
-    #pragma omp critical (io_region_update)
-      {
-	// update region_flag here
-      }
-
     }
 
     #pragma omp section		// IO thread
     {
       IO_Tasks_Work();
-      //      thread_id = omp_get_thread_num(); 
-      //      printf("[%i]: thread id for child reader thread = %i\n",io_rank,thread_id);
-
-      //      int count = 0;
-      //      for(int i=0;i<MAX_REGIONS;i++)
     }
-
   }
 
   return;
