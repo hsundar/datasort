@@ -33,6 +33,9 @@ class sortio_Class {
   void ReadFiles(); 
   void SplitComm();
   void Summarize();
+  void Init_Read();
+  void IO_Tasks_Work();
+  void Transfer_Tasks_Work();
 
  private:
   bool master;			   // master task?

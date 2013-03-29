@@ -4,8 +4,8 @@
 // ReadFiles(): primary routine for reading raw sort data
 //
 // * Operates on IO_COMM communicator
-// * Threaded - data is buffered as it is read for subsequent
-//              distribution to sort tasks.
+// * Threading - data is buffered from thread 1 to thread 0 as it is 
+//               read for subsequent distribution to sort tasks.
 // --------------------------------------------------------------------
 
 void sortio_Class::ReadFiles()
@@ -20,7 +20,29 @@ void sortio_Class::ReadFiles()
 
   gt.BeginTimer("Raw Read");
 
-  // Initialize threading environment
+  // Initialize read buffers - todo: think about memory pinning here
+
+  const int MAX_REGIONS          = 10;	// quick local hack - todo: read from input
+  const int MAX_FILE_SIZE_IN_MBS = 100;
+
+  std::vector<unsigned char *> regions;
+  regions.reserve(MAX_REGIONS);
+
+  for(int i=0;i<MAX_REGIONS;i++)
+    {
+      regions[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+      assert(regions[i] != NULL);
+    }
+
+  // Initialize region_flag used for thread coordination between
+  // reader and data xfer threads. If false, the region is empty and
+  // is available to be read into. If true, the region is populated
+  // with sort data and is ready to be read from by the xfer thread.
+
+  std::vector<bool> region_flag(MAX_REGIONS,false);
+
+  // Initialize and launch threading environment for an asychronous data
+  // transfer mechanism
 
   const int num_io_threads_per_host = 2;
   omp_set_num_threads(num_io_threads_per_host);
@@ -33,14 +55,26 @@ void sortio_Class::ReadFiles()
 
     #pragma omp section		// XFER thread
     {
-      thread_id = omp_get_thread_num(); 
-      printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
+      Transfer_Tasks_Work();
+      usleep(3000000);
+      //thread_id = omp_get_thread_num(); 
+      //      printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
+
+    #pragma omp critical (io_region_update)
+      {
+	// update region_flag here
+      }
+
     }
 
     #pragma omp section		// IO thread
     {
-      thread_id = omp_get_thread_num(); 
-      printf("[%i]: thread id for child reader thread = %i\n",io_rank,thread_id);
+      IO_Tasks_Work();
+      //      thread_id = omp_get_thread_num(); 
+      //      printf("[%i]: thread id for child reader thread = %i\n",io_rank,thread_id);
+
+      //      int count = 0;
+      //      for(int i=0;i<MAX_REGIONS;i++)
     }
 
   }
@@ -151,8 +185,10 @@ void sortio_Class::ReadFiles()
 	  if(read_size == 0)
 	    break;
 
+#if 0
 	  if(read_size != REC_SIZE)
 	    MPI_Abort(MPI_COMM_WORLD,43);
+#endif
 
 	  num_records_read++;
 	}
