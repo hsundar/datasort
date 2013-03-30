@@ -39,18 +39,18 @@ class sortio_Class {
   void Transfer_Tasks_Work();
 
  private:
-  bool master;			   // master task?
-  bool initialized;		   // class initialized?
-  bool override_numfiles;          // Override num_files setting?
-  bool random_read_offset;         // Randomly change rank ordering for read to minimize cache effects?
-  bool mpi_initialized_by_sortio;  // did we have to call MPI_Init()?
-  int  num_files_total;		   // total # of input files to sort
-  int  num_io_hosts;		   // total # of desired unique IO hosts
+  bool master;			        // master task?
+  bool initialized;		        // class initialized?
+  bool override_numfiles;               // Override num_files setting?
+  bool random_read_offset;              // Randomly change rank ordering for read to minimize cache effects?
+  bool mpi_initialized_by_sortio;       // did we have to call MPI_Init()?
+  int  num_files_total;		        // total # of input files to sort
+  int  num_io_hosts;		        // total # of desired unique IO hosts
 
-  unsigned long num_records_read;  // total # of records read locally
-  std::string basename;		   // input file basename
-  std::string indir;		   // input directory
-  GRVY::GRVY_Timer_Class gt;       // performance timer
+  unsigned long num_records_read;       // total # of records read locally
+  std::string basename;		        // input file basename
+  std::string indir;		        // input directory
+  GRVY::GRVY_Timer_Class gt;            // performance timer
 
   // Global MPI info (for GLOB_COMM)
 
@@ -61,11 +61,12 @@ class sortio_Class {
   // Dedicated I/O tasks 
 
   bool     is_io_task;                  // MPI rank is an IO task?
+  bool     master_io;			// master IO task?
   int      nio_tasks;		        // number of dedicated raw I/O tasks
   int      io_rank;		        // MPI rank of local I/O task
   MPI_Comm IO_COMM;		        // MPI communicator for raw I/O tasks
 				        
-  int      MAX_READ_REGIONS;	        // number of read buffers
+  int      MAX_READ_BUFFERS;	        // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
   std::vector<unsigned char *> buffers; // read buffers
   std::queue <size_t> empty_queue;      // fifo queue to flag empty read buffers
@@ -74,6 +75,7 @@ class sortio_Class {
   // Data transfer 
 
   bool     is_xfer_task;                // MPI rank is a data transfer task?
+  bool     master_xfer;			// master XFER task?
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
@@ -81,6 +83,7 @@ class sortio_Class {
   // Data sort 
 
   bool     is_sort_task;                // MPI rank is a sort task?
+  bool     master_sort;			// master SORT task?
   int      nsort_tasks;		        // number of dedicated sort tasks
   int      sort_rank;		        // MPI rank of local sort task
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks

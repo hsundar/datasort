@@ -8,6 +8,9 @@ sortio_Class::sortio_Class()
 {
   initialized               = false;
   master                    = false;
+  master_io                 = false;
+  master_xfer               = false;
+  master_sort               = false;
   override_numfiles         = false;
   random_read_offset        = false;
   mpi_initialized_by_sortio = false;
@@ -152,13 +155,22 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       if(!override_numfiles)
 	assert( iparse.Read_Var("sortio/num_files",&num_files_total) != 0);
 
-      assert( iparse.Read_Var("sortio/num_io_hosts",&num_io_hosts) != 0);
-      assert( iparse.Read_Var("sortio/input_dir",&indir)           != 0);
+      // Register defaults
+
+      iparse.Register_Var("sortio/max_read_buffers",     10);
+      iparse.Register_Var("sortio/max_file_size_in_mbs",100);
+
+      assert( iparse.Read_Var("sortio/num_io_hosts",        &num_io_hosts)         != 0 );
+      assert( iparse.Read_Var("sortio/input_dir",           &indir)                != 0 );
+      assert( iparse.Read_Var("sortio/max_read_buffers",    &MAX_READ_BUFFERS)     != 0 );
+      assert( iparse.Read_Var("sortio/max_file_size_in_mbs",&MAX_FILE_SIZE_IN_MBS) != 0 );
 
       grvy_printf(INFO,"[sortio]\n");
-      grvy_printf(INFO,"[sortio] Runtime input parsing:");
-      grvy_printf(INFO,"[sortio] --> total number of files to read = %i\n",num_files_total);
-      grvy_printf(INFO,"[sortio] --> input directory               = %s\n",indir.c_str());
+      grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
+      grvy_printf(INFO,"[sortio] --> Total number of files to read = %i\n",num_files_total);
+      grvy_printf(INFO,"[sortio] --> Input directory               = %s\n",indir.c_str());
+      grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
+      grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
     }
 
   // Broadcast necessary runtime controls to all tasks
@@ -168,8 +180,10 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   //  random_read_offset  = true;
 
-  assert( MPI_Bcast(&num_files_total,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS);
-  assert( MPI_Bcast(&tmp_string_size,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(&num_files_total,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&MAX_READ_BUFFERS,    1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&tmp_string_size,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
   
   tmp_string = (char *)calloc(tmp_string_size,sizeof(char));
   strcpy(tmp_string,indir.c_str());
@@ -238,8 +252,6 @@ void sortio_Class::SplitComm()
 	  uniq_hosts[host].push_back(i);
 	}
 
-
-
       std::map<std::string,std::vector<int> >::iterator it;
 
       int count = 0;
@@ -294,9 +306,9 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio] --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-num_io_hosts);
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Work Task Division:\n");
-      grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks = %4i\n",nio_tasks);
-      grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks = %4i\n",nxfer_tasks);
-      grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks = %4i\n",nsort_tasks);
+      grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks    = %4i\n",nio_tasks);
+      grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks    = %4i\n",nxfer_tasks);
+      grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks    = %4i\n",nsort_tasks);
 
     }
 
@@ -355,11 +367,23 @@ void sortio_Class::SplitComm()
   //  cache the new communicator ranks...
 
   if(is_io_task)
-    assert( MPI_Comm_rank(IO_COMM,&io_rank) == MPI_SUCCESS);
+    {
+      assert( MPI_Comm_rank(IO_COMM,&io_rank) == MPI_SUCCESS);
+      if(io_rank == 0)
+	master_io = true;
+    }
   if(is_xfer_task)
-    assert( MPI_Comm_rank(XFER_COMM,&xfer_rank) == MPI_SUCCESS);
+    {
+      assert( MPI_Comm_rank(XFER_COMM,&xfer_rank) == MPI_SUCCESS);
+      if(xfer_rank == 0)
+	master_xfer = true;
+    }
   if(is_sort_task)
-    assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
+    {
+      assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
+      if(sort_rank == 0)
+	master_sort = true;
+    }
 
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)

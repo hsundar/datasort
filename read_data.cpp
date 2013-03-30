@@ -18,24 +18,35 @@ void sortio_Class::Init_Read()
 
   // Initialize read buffers - todo: think about memory pinning here
 
-  const int MAX_REGIONS          = 10;	// quick local hack - todo: read from input
-  const int MAX_FILE_SIZE_IN_MBS = 100;
+  //const int MAX_REGIONS          = 10;	// quick local hack - todo: read from input
+  //const int MAX_FILE_SIZE_IN_MBS = 100;
 
-  std::vector<unsigned char *> regions;
-  regions.reserve(MAX_REGIONS);
+  //std::vector<unsigned char *> regions;
 
-  for(int i=0;i<MAX_REGIONS;i++)
+  buffers.reserve(MAX_READ_BUFFERS);
+
+  for(int i=0;i<MAX_READ_BUFFERS;i++)
     {
-      regions[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
-      assert(regions[i] != NULL);
+      buffers[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+      assert(buffers[i] != NULL);
+
+      // Flag buffers as being eligible to receive data
+
+      empty_queue.push(i);
     }
 
+  if(master_io)
+    grvy_printf(INFO,"[sortio][IO]: %i Read buffers allocated (%i MB each)\n",MAX_READ_BUFFERS,MAX_FILE_SIZE_IN_MBS);
+
+
+#if 0
   // Initialize region_flag used for thread coordination between
   // reader and data xfer threads. If false, the region is empty and
   // is available to be read into. If true, the region is populated
   // with sort data and is ready to be read from by the xfer thread.
 
   std::vector<bool> region_flag(MAX_REGIONS,false);
+#endif
 
   // Initialize and launch threading environment for an asychronous
   // data transfer mechanism
