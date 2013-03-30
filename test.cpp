@@ -3,10 +3,7 @@
 int main(int argc, char *argv[], char *env[])
 {
 
-  int num_procs;		// total # of MPI tasks available
-  int num_local;		// rank of local MPI task
-
-  sortio_Class sort_IO;		// IO subysystem 
+  sortio_Class sort_IO;	  
 
   // [optional]: set total # of files to read via command-line;
   // otherwise, we read from input file
@@ -16,7 +13,6 @@ int main(int argc, char *argv[], char *env[])
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();
-
   sort_IO.Init_Read();  
   // sort_IO.ReadFiles();  
   // sort_IO.Summarize();

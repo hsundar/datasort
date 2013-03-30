@@ -48,6 +48,8 @@ class sortio_Class {
   int  num_io_hosts;		        // total # of desired unique IO hosts
 
   unsigned long num_records_read;       // total # of records read locally
+  unsigned long records_per_file;       // # of records read locally per file
+
   std::string basename;		        // input file basename
   std::string indir;		        // input directory
   GRVY::GRVY_Timer_Class gt;            // performance timer

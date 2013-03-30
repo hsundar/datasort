@@ -14,16 +14,12 @@ void sortio_Class::Init_Read()
   if(!is_io_task)
     return;
 
-  gt.BeginTimer("Raw Read");
+  gt.BeginTimer("Init Read");
 
   // Initialize read buffers - todo: think about memory pinning here
 
-  //const int MAX_REGIONS          = 10;	// quick local hack - todo: read from input
-  //const int MAX_FILE_SIZE_IN_MBS = 100;
-
-  //std::vector<unsigned char *> regions;
-
-  buffers.reserve(MAX_READ_BUFFERS);
+  //  buffers.reserve(MAX_READ_BUFFERS);
+  buffers.resize(MAX_READ_BUFFERS);
 
   for(int i=0;i<MAX_READ_BUFFERS;i++)
     {
@@ -36,8 +32,11 @@ void sortio_Class::Init_Read()
     }
 
   if(master_io)
-    grvy_printf(INFO,"[sortio][IO]: %i Read buffers allocated (%i MB each)\n",MAX_READ_BUFFERS,MAX_FILE_SIZE_IN_MBS);
-
+    {
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio][IO] %i Read buffers allocated (%i MB each)\n",
+		  MAX_READ_BUFFERS,MAX_FILE_SIZE_IN_MBS);
+    }
 
 #if 0
   // Initialize region_flag used for thread coordination between
@@ -47,6 +46,8 @@ void sortio_Class::Init_Read()
 
   std::vector<bool> region_flag(MAX_REGIONS,false);
 #endif
+
+  gt.EndTimer("Init Read");
 
   // Initialize and launch threading environment for an asychronous
   // data transfer mechanism
@@ -83,6 +84,10 @@ void sortio_Class::Init_Read()
 void sortio_Class::ReadFiles()
 {
 
+  assert(initialized);
+  assert(is_io_task);
+
+  gt.BeginTimer("Raw Read");
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
   int read_size;
 
@@ -108,7 +113,7 @@ void sortio_Class::ReadFiles()
       // Optionally randomize so we can minimize local host
       // file-caching for more legitimate reads; the idea here is to
       // help enable repeat testing on the same hosts for smaller
-      // dataset sizes. We just keep a local file here an iterate an
+      // dataset sizes. We just keep a local file here and iterate an
       // offset on each run
 
       if(random_read_offset)
@@ -158,7 +163,7 @@ void sortio_Class::ReadFiles()
 #if 0
 	  printf("[sortio][%3i]: new file_suffix = %3i\n",io_rank,file_suffix);
 #endif
-	}
+	} // end if(random_read_offset)
 
       if(file_suffix >= num_files_total)
 	{
@@ -169,9 +174,7 @@ void sortio_Class::ReadFiles()
       s_id << file_suffix;
       std::string infile = filebase + s_id.str();
 
-#if 1
-      printf("[sortio][%3i]: filename = %s\n",io_rank,infile.c_str());
-#endif
+      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: filename = %s\n",io_rank,infile.c_str());
 
       FILE *fp = fopen(infile.c_str(),"r");
       
@@ -179,6 +182,7 @@ void sortio_Class::ReadFiles()
 	MPI_Abort(MPI_COMM_WORLD,42);
 
       read_size = REC_SIZE;
+      records_per_file = 0;
 
       while(read_size == REC_SIZE)
 	{
@@ -187,19 +191,15 @@ void sortio_Class::ReadFiles()
 	  if(read_size == 0)
 	    break;
 
-#if 0
-	  if(read_size != REC_SIZE)
-	    MPI_Abort(MPI_COMM_WORLD,43);
-#endif
+	  assert(read_size == REC_SIZE);
 
 	  num_records_read++;
+	  records_per_file++;
 	}
 
       fclose(fp);
 
-#if 0
-      printf("[sortio][%3i]: records read = %i\n",io_rank,num_records_read);
-#endif
+      grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
 
     }
 
