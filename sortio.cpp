@@ -365,20 +365,18 @@ void sortio_Class::SplitComm()
       xfer_comm_ranks.reserve(nxfer_tasks);
       sort_comm_ranks.reserve(nsort_tasks);
 
-      printf("[rank %i]:nscatter_tasks = %i (space = %zi)\n",num_local,nscatter_tasks,
-	     scatter_comm_ranks.size());
+      //      printf("[rank %i]:nscatter_tasks = %i (space = %zi)\n",num_local,nscatter_tasks,
+      //	     scatter_comm_ranks.size());
       for(int i=0;i<nio_tasks;i++)
-	{
-	  scatter_comm_ranks[i].reserve(nscatter_tasks);
-	}
+	scatter_comm_ranks[i].reserve(nscatter_tasks);
     }
 
   assert( MPI_Bcast(  io_comm_ranks.data(),  nio_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
-  //  for(int i=0;i<nio_tasks;i++)
-  //    assert( MPI_Bcast(scatter_comm_ranks[i].data(),nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+  for(int i=0;i<nio_tasks;i++)
+    assert( MPI_Bcast(scatter_comm_ranks[i].data(),nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
   MPI_Group group_global;
   MPI_Group group_io;
