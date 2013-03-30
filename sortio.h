@@ -79,6 +79,7 @@ class sortio_Class {
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
+  std::vector<MPI_Comm> Scatter_comms;  // List of communicators which has each IO task as rank leader
 
   // Data sort 
 

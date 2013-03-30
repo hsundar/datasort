@@ -234,12 +234,14 @@ void sortio_Class::SplitComm()
   assert (MPI_Gather(&hostname[0],     MPI_MAX_PROCESSOR_NAME,MPI_CHAR,
 		     &hostnames_ALL[0],MPI_MAX_PROCESSOR_NAME,MPI_CHAR,0,GLOB_COMM) == MPI_SUCCESS);
 
-  //  const int num_io_hosts = 2;
+  std::vector<int>      io_comm_ranks; 
+  std::vector<int>    xfer_comm_ranks;
+  std::vector<int>    sort_comm_ranks;
 
-  std::vector<int>   io_comm_ranks; 
-  std::vector<int> xfer_comm_ranks;
-  std::vector<int> sort_comm_ranks;
-  std::map<std::string,std::vector<int> > uniq_hosts;
+  std::map<std::string,std::vector<int> > uniq_hosts; // hostname -> global MPI rank mapping
+
+  std::vector<int>    tmp_scatter;
+  std::vector< std::vector<int> > scatter_comm_ranks(num_io_hosts); // dedicated Scatter comms from each IO rank
 
   if(master)
     {
@@ -261,6 +263,8 @@ void sortio_Class::SplitComm()
       assert (num_io_hosts > 0);
       assert (num_io_hosts < num_tasks);
 
+      //scatter_comm_ranks.reserve(num_io_hosts);
+
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Rank per host detection:\n");
 
@@ -276,10 +280,13 @@ void sortio_Class::SplitComm()
 	    {
 	      io_comm_ranks.push_back  ((*it).second[0]);
 	      xfer_comm_ranks.push_back((*it).second[0]);
+	      scatter_comm_ranks[count].push_back((*it).second[0]);
 	    }
 	  else
 	    {
 	      xfer_comm_ranks.push_back((*it).second[0]);
+	      tmp_scatter.push_back((*it).second[0]);
+
 	      for(int proc=1;proc<(*it).second.size();proc++)
 		sort_comm_ranks.push_back((*it).second[proc]);
 	    }
@@ -292,11 +299,31 @@ void sortio_Class::SplitComm()
       nxfer_tasks = xfer_comm_ranks.size();
       nsort_tasks = sort_comm_ranks.size();
 
+      // quick sanity checks
+
       assert(nio_tasks   > 0);
       assert(nxfer_tasks > 0);
       assert(nxfer_tasks > nio_tasks);
       assert(nsort_tasks > 0);
+      assert(nio_tasks == num_io_hosts);
       assert(nxfer_tasks + nsort_tasks <= num_tasks);
+      assert(tmp_scatter.size() == (nxfer_tasks - nio_tasks) );
+
+      // Complete build out of scatter_comm ranks - the receiving XFER
+      // ranks were cached above in tmp_scatter; now, just need to append them
+      // to each scatter_comm_ranks entry;
+
+      grvy_printf(INFO,"[sortio]\n");
+      grvy_printf(INFO,"[sortio] Defining %i data transfer Scatter groups...\n",nio_tasks);
+      
+      for(int i=0;i<nio_tasks;i++)
+	{
+	  assert(scatter_comm_ranks[i].size() == 1);
+	  scatter_comm_ranks[i].insert(scatter_comm_ranks[i].end(),tmp_scatter.begin(),tmp_scatter.end());
+
+	  assert(scatter_comm_ranks[i].size() == (nxfer_tasks - nio_tasks + 1) );
+	  printf("[sortio] --> Set %i global rank as leader (%zi ranks total)\n",scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
+	}
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -325,8 +352,6 @@ void sortio_Class::SplitComm()
       sort_comm_ranks.reserve(nsort_tasks);
     }
 
-  int tmp[100];
-
   assert( MPI_Bcast(  io_comm_ranks.data(),  nio_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
@@ -335,10 +360,11 @@ void sortio_Class::SplitComm()
   MPI_Group group_io;
   MPI_Group group_xfer;
   MPI_Group group_sort;
+  MPI_Group group_scatter;
 
   assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
 
-  // New groups for IO, XFER, and SORT
+  // New groups for IO, XFER, SORT, and special Scatter group 
 
   assert( MPI_Group_incl(group_global,   nio_tasks,   io_comm_ranks.data(),   &group_io) == MPI_SUCCESS);
   assert( MPI_Group_incl(group_global, nxfer_tasks, xfer_comm_ranks.data(), &group_xfer) == MPI_SUCCESS);
@@ -383,6 +409,17 @@ void sortio_Class::SplitComm()
       assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
       if(sort_rank == 0)
 	master_sort = true;
+    }
+
+  // To facilitate data transfer from IO tasks to SORT tasks, we build
+  // up a number of convenience MPI_Scatter() communicators. There are
+  // num_io_hosts communicators which each contain all of the SORT MPI
+  // ranks, plus 1 IO ranks as the leader.
+
+  if(is_xfer_task)
+    {
+      Scatter_comms.resize(num_io_hosts);
+      
     }
 
   // summarize the config (data printed from master rank to make the output easy on 
