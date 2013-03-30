@@ -373,19 +373,21 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
+  // Distributing scatter_comm_ranks takes a litle more care to pass
+  // around as it is a vector of vectors
+
   for(int io_host=0;io_host<nio_tasks;io_host++)
     {
       if(master)
 	{
 	  int *ranks_to_send = (scatter_comm_ranks[io_host]).data();
 	  assert( MPI_Bcast( ranks_to_send,nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);	  
-	  //assert( MPI_Bcast( (scatter_comm_ranks[io_host]).data(),
-	  //nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 	}
       else
 	{
 	  int *ranks_to_recv = new int [nscatter_tasks];
 	  assert( MPI_Bcast( ranks_to_recv,nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+
 	  for(int iscat=0;iscat<nscatter_tasks;iscat++)
 	    scatter_comm_ranks[io_host].push_back(ranks_to_recv[iscat]);
 
@@ -414,35 +416,13 @@ void sortio_Class::SplitComm()
 
   for(int io_host=0;io_host<nio_tasks;io_host++)
     {
-      //std::vector<int> ranks = (scatter_comm_ranks[io_host]);
-      std::vector<int> ranks (scatter_comm_ranks[io_host]);
-
-      //printf("%i: local size of vector = %zi\n",num_local,ranks.size());
-      //printf("%i: # of scatter ranks   = %i\n",num_local,nscatter_tasks);
-
-      assert(ranks.size() == nscatter_tasks);
-
-#if 0
-      assert( MPI_Group_incl (group_global, nscatter_tasks, ranks.data(),
-			      &group_scatter) == MPI_SUCCESS);
-
-      int *ranks2 = (scatter_comm_ranks[0]).data();
-
-      assert( MPI_Group_incl (group_global, nscatter_tasks, ranks2,
-			      &group_scatter) == MPI_SUCCESS);
-#endif
-
-      assert( MPI_Group_incl (group_global, nscatter_tasks, (scatter_comm_ranks[io_host]).data(), 
-      			      &group_scatter) == MPI_SUCCESS);
+      assert( MPI_Group_incl (group_global, nscatter_tasks,
+			      (scatter_comm_ranks[io_host]).data(), &group_scatter) == MPI_SUCCESS);
 
       MPI_Comm tmp_COMM;
-      //break;
 
       assert( MPI_Comm_create(GLOB_COMM, group_scatter, &tmp_COMM ) == MPI_SUCCESS);
       Scatter_COMMS.push_back(tmp_COMM);
-      //Scatter_COMMS.push_back(MPI_COMM_WORLD);
-      //Scatter_COMMS[io_host] = tmp_COMM;
-      //      assert( MPI_Comm_create(GLOB_COMM, group_scatter, Scatter_COMMS[io_host].data()) == MPI_SUCCESS);
     }   
 
   assert(Scatter_COMMS.size() == nio_tasks);
