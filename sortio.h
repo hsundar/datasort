@@ -10,6 +10,7 @@
 #include <ctime>
 #include <cstring>
 #include <sstream>
+#include <queue>
 #include "mpi.h"
 #include "grvy.h"
 
@@ -53,30 +54,36 @@ class sortio_Class {
 
   // Global MPI info (for GLOB_COMM)
 
-  int  num_tasks;		   // total # of MPI tasks available to the class
-  int  num_local;		   // global MPI rank for clas GLOB_COMM
-  MPI_Comm GLOB_COMM;		   // global MPI communicator provided as input to the class
+  int  num_tasks;		        // total # of MPI tasks available to the class
+  int  num_local;		        // global MPI rank for clas GLOB_COMM
+  MPI_Comm GLOB_COMM;		        // global MPI communicator provided as input to the class
 
   // Dedicated I/O tasks 
 
-  bool     is_io_task;             // MPI rank is an IO task?
-  int      nio_tasks;		   // number of dedicated raw I/O tasks
-  int      io_rank;		   // MPI rank of local I/O task
-  MPI_Comm IO_COMM;		   // MPI communicator for raw I/O tasks
+  bool     is_io_task;                  // MPI rank is an IO task?
+  int      nio_tasks;		        // number of dedicated raw I/O tasks
+  int      io_rank;		        // MPI rank of local I/O task
+  MPI_Comm IO_COMM;		        // MPI communicator for raw I/O tasks
+				        
+  int      MAX_READ_REGIONS;	        // number of read buffers
+  int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
+  std::vector<unsigned char *> buffers; // read buffers
+  std::queue <size_t> empty_queue;      // fifo queue to flag empty read buffers
+  std::queue <size_t> full_queue;       // fifo queue to flag full read buffers
 
   // Data transfer 
 
-  bool     is_xfer_task;           // MPI rank is a data transfer task?
-  int      nxfer_tasks;		   // number of dedicated data transfer tasks
-  int      xfer_rank;		   // MPI rank of local data transfer task
-  MPI_Comm XFER_COMM;		   // MPI communicator for data transfer tasks
+  bool     is_xfer_task;                // MPI rank is a data transfer task?
+  int      nxfer_tasks;		        // number of dedicated data transfer tasks
+  int      xfer_rank;		        // MPI rank of local data transfer task
+  MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
 
   // Data sort 
 
-  bool     is_sort_task;           // MPI rank is a sort task?
-  int      nsort_tasks;		   // number of dedicated sort tasks
-  int      sort_rank;		   // MPI rank of local sort task
-  MPI_Comm SORT_COMM;		   // MPI communicator for data sort tasks
+  bool     is_sort_task;                // MPI rank is a sort task?
+  int      nsort_tasks;		        // number of dedicated sort tasks
+  int      sort_rank;		        // MPI rank of local sort task
+  MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
 
   unsigned char rec_buf[REC_SIZE];
   

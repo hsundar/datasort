@@ -1,19 +1,15 @@
 #include "sortio.h"
 
 // --------------------------------------------------------------------
-// ReadFiles(): primary routine for reading raw sort data
-//
-// * Operates on IO_COMM communicator
-// * Threading - data is buffered from thread 1 to thread 0 as it is 
-//               read for subsequent distribution to sort tasks.
+// InitRead(): initialize threading environment for IO read tasks
 // --------------------------------------------------------------------
 
-void sortio_Class::ReadFiles()
+void sortio_Class::Init_Read()
 {
 
   assert(initialized);
 
-  // This return only operates on IO_tasks
+  // This routine is only meaningful on IO_tasks
 
   if(!is_io_task)
     return;
@@ -62,6 +58,19 @@ void sortio_Class::ReadFiles()
   }
 
   return;
+
+}
+
+// --------------------------------------------------------------------
+// ReadFiles(): primary routine for reading raw sort data
+//
+// * Operates on IO_COMM communicator
+// * Threading - data is buffered from thread 1 to thread 0 as it is 
+//               read for subsequent distribution to sort tasks.
+// --------------------------------------------------------------------
+
+void sortio_Class::ReadFiles()
+{
 
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
   int read_size;
