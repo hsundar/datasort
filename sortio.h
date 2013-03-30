@@ -72,16 +72,17 @@ class sortio_Class {
   std::queue <size_t> empty_queue;      // fifo queue to flag empty read buffers
   std::queue <size_t> full_queue;       // fifo queue to flag full read buffers
 
-  // Data transfer 
+  // Data transfer tasks
 
   bool     is_xfer_task;                // MPI rank is a data transfer task?
   bool     master_xfer;			// master XFER task?
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
+  int      nscatter_tasks;		// number of scatter tasks per scatter communicator
   std::vector<MPI_Comm> Scatter_comms;  // List of communicators which has each IO task as rank leader
 
-  // Data sort 
+  // Data sort tasks
 
   bool     is_sort_task;                // MPI rank is a sort task?
   bool     master_sort;			// master SORT task?

@@ -165,6 +165,13 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/max_read_buffers",    &MAX_READ_BUFFERS)     != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs",&MAX_FILE_SIZE_IN_MBS) != 0 );
 
+      // Simple sanity checks
+
+      assert( num_io_hosts         > 0);
+      assert( MAX_READ_BUFFERS     > 0);
+      assert( MAX_FILE_SIZE_IN_MBS > 0);
+      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 16*1024 ); // Assume less than 16 GB/host
+
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
       grvy_printf(INFO,"[sortio] --> Total number of files to read = %i\n",num_files_total);
@@ -181,6 +188,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   //  random_read_offset  = true;
 
   assert( MPI_Bcast(&num_files_total,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&num_io_hosts,        1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_READ_BUFFERS,    1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
@@ -323,7 +331,12 @@ void sortio_Class::SplitComm()
 
 	  assert(scatter_comm_ranks[i].size() == (nxfer_tasks - nio_tasks + 1) );
 	  printf("[sortio] --> Set %i global rank as leader (%zi ranks total)\n",scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
+	  if(i == 0)
+	    nscatter_tasks = scatter_comm_ranks[i].size();
+	  else
+	    assert (scatter_comm_ranks[i].size() == nscatter_tasks);
 	}
+
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -341,20 +354,31 @@ void sortio_Class::SplitComm()
 
   // Build up new MPI task groups
 
-  assert( MPI_Bcast(&nio_tasks,  1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-  assert( MPI_Bcast(&nxfer_tasks,1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-  assert( MPI_Bcast(&nsort_tasks,1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(&nio_tasks,     1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nxfer_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nsort_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nscatter_tasks,1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
 
   if(!master)
     {
       io_comm_ranks.reserve  (nio_tasks);
       xfer_comm_ranks.reserve(nxfer_tasks);
       sort_comm_ranks.reserve(nsort_tasks);
+
+      printf("[rank %i]:nscatter_tasks = %i (space = %zi)\n",num_local,nscatter_tasks,
+	     scatter_comm_ranks.size());
+      for(int i=0;i<nio_tasks;i++)
+	{
+	  scatter_comm_ranks[i].reserve(nscatter_tasks);
+	}
     }
 
   assert( MPI_Bcast(  io_comm_ranks.data(),  nio_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+
+  //  for(int i=0;i<nio_tasks;i++)
+  //    assert( MPI_Bcast(scatter_comm_ranks[i].data(),nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
   MPI_Group group_global;
   MPI_Group group_io;

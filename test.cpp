@@ -17,26 +17,9 @@ int main(int argc, char *argv[], char *env[])
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();
 
-#if 0
-  GRVY::GRVY_Input_Class iparse;
-
-
-  if(num_local == 0)
-    {
-      int flag;
-      int nio_tasks;
-      int nfiles;
-
-      assert(iparse.Open    ("input.dat")                   != 0);
-      assert(iparse.Read_Var("sortio/num_tasks",&nio_tasks) != 0);
-      assert(nio_tasks <= num_procs);
-    }
-
-#endif
-
-    sort_IO.Init_Read();  
-    // sort_IO.ReadFiles();  
-    // sort_IO.Summarize();
+  sort_IO.Init_Read();  
+  // sort_IO.ReadFiles();  
+  // sort_IO.Summarize();
 
   return 0;
 }
