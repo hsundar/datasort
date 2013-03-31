@@ -10,6 +10,7 @@
 #include <ctime>
 #include <cstring>
 #include <sstream>
+#include <algorithm>
 #include <queue>
 #include "mpi.h"
 #include "grvy.h"
@@ -35,6 +36,7 @@ class sortio_Class {
   void SplitComm();
   void Summarize();
   void Init_Read();
+  //  void Init_XFER();
   void IO_Tasks_Work();
   void Transfer_Tasks_Work();
 
@@ -71,13 +73,14 @@ class sortio_Class {
   int      MAX_READ_BUFFERS;	        // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
   std::vector<unsigned char *> buffers; // read buffers
-  std::queue <size_t> empty_queue;      // fifo queue to flag empty read buffers
-  std::queue <size_t> full_queue;       // fifo queue to flag full read buffers
+  std::queue <size_t> emptyQueue_;      // fifo queue to flag empty read buffers
+  std::queue <size_t> fullQueue_;       // fifo queue to flag full read buffers
 
   // Data transfer tasks
 
   bool     is_xfer_task;                // MPI rank is a data transfer task?
   bool     master_xfer;			// master XFER task?
+  bool     isReadFinished_;		// flag for signaling raw read completion
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks

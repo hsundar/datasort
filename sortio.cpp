@@ -17,6 +17,7 @@ sortio_Class::sortio_Class()
   is_io_task                = false;
   is_xfer_task              = false;
   is_sort_task              = false;
+  isReadFinished_           = false;
   nio_tasks                 = 0;
   nxfer_tasks               = 0;
   nsort_tasks               = 0;

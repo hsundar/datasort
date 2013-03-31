@@ -28,7 +28,7 @@ void sortio_Class::Init_Read()
 
       // Flag buffers as being eligible to receive data
 
-      empty_queue.push(i);
+      emptyQueue_.push(i);
     }
 
   if(master_io)
@@ -58,12 +58,12 @@ void sortio_Class::Init_Read()
 #pragma omp parallel
 #pragma omp sections
   {
-    #pragma omp section		// XFER thread
+    #pragma omp section		// MPI transfer thread
     {
       Transfer_Tasks_Work();
     }
 
-    #pragma omp section		// IO thread
+    #pragma omp section		// Read thread
     {
       IO_Tasks_Work();
     }
@@ -89,7 +89,7 @@ void sortio_Class::ReadFiles()
 
   gt.BeginTimer("Raw Read");
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
-  int read_size;
+  size_t read_size;
 
   std::string filebase(indir);
   filebase += "/";
@@ -181,12 +181,31 @@ void sortio_Class::ReadFiles()
       if(fp == NULL)
 	MPI_Abort(MPI_COMM_WORLD,42);
 
-      read_size = REC_SIZE;
       records_per_file = 0;
+
+      // pick available buffer for data storage; buffer is a
+      // convenience pointer here which is set to empty data storage
+      // prior to each raw read
+
+      int buf_num;
+      unsigned char *buffer;	// 
+      
+#pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+      {
+	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",io_rank,emptyQueue_.size());
+	buf_num = emptyQueue_.front();
+	emptyQueue_.pop();
+      }
+
+      buffer  = buffers[buf_num];
 
       while(read_size == REC_SIZE)
 	{
-	  read_size = fread(rec_buf,1,REC_SIZE,fp);
+
+	  // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
+
+	  read_size = fread(&buffer[num_records_read*REC_SIZE],1,REC_SIZE,fp);
+	  //read_size = fread(rec_buf,1,REC_SIZE,fp);
 
 	  if(read_size == 0)
 	    break;
@@ -199,10 +218,19 @@ void sortio_Class::ReadFiles()
 
       fclose(fp);
 
+#pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+      {
+	fullQueue_.push(buf_num);
+	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",io_rank,fullQueue_.size());
+      }
+
       grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
 
     }
 
+  isReadFinished_ = true;
+
   gt.EndTimer("Raw Read");
+  return;
 
 }
