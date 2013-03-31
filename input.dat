@@ -4,7 +4,7 @@
 [sortio]
 
 num_io_hosts = 2
-num_files = 4
+num_files = 40
 
 max_read_buffers     = 10  
 max_file_size_in_mbs = 100

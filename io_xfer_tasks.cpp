@@ -25,7 +25,8 @@ void sortio_Class::Transfer_Tasks_Work()
   int procMax;
   int maxCount;
 
-  while (numTransferedFiles < num_files_total)
+  //while (numTransferedFiles < num_files_total)
+  while ( !isReadFinished_ && fullQueue_.size() > 0)
     {
 
       // Check which processor has the most data available
@@ -49,8 +50,8 @@ void sortio_Class::Transfer_Tasks_Work()
 
       count++;
 
-      if(count > 10)
-	numTransferedFiles = num_files_total;// hack
+      //      if(count > 100)
+      //	numTransferedFiles = num_files_total;// hack
 
       // Scatter data from the processor with the most data on hand;
       // if no processors are ready yet, iterate and check again
@@ -61,9 +62,30 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
-	  // step 2: distribute data from procMax using special
-	  // scatter group with procmax as the leader
+	  if(io_rank == procMax)
+	    {
+	      // step 2: distribute data from procMax using special
+	      // scatter group with procmax as the leader
 
+	      int buf_num;
+              #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+	      {
+		buf_num = fullQueue_.front();
+		fullQueue_.pop();
+	      }
+
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: Sending buf = %2i\n",io_rank,buf_num);
+
+	      // todo: scatter using correct communicator
+
+	      // step 3: flag this buffer as being eligible for read task to use again
+
+              #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+	      {
+		emptyQueue_.push(buf_num);
+	      }
+
+	  }
 	}
       else
 	usleep(USLEEP_INTERVAL);
