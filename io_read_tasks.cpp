@@ -15,10 +15,12 @@ void sortio_Class::IO_Tasks_Work()
 
   // stuff below needs to go in ReadFiles
 
-    #pragma omp critical (io_region_update)
-      {
-	// update region_flag here
-      }
+#pragma omp critical (io_region_update)
+  {
+    // update region_flag here
+  }
+
+  grvy_printf(INFO,"[sortio][IO/Read][%.4i]: ALL DONE with Read\n",io_rank);
 
   return;
 }

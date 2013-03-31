@@ -39,6 +39,7 @@ class sortio_Class {
   //  void Init_XFER();
   void IO_Tasks_Work();
   void Transfer_Tasks_Work();
+  void beginRecvTransferProcess();
 
  private:
   bool master;			        // master task?

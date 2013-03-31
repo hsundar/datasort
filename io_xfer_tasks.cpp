@@ -12,7 +12,6 @@ void sortio_Class::Transfer_Tasks_Work()
   const int USLEEP_INTERVAL = 10000;
   int numTransferedFiles = 0;
 
-  //  usleep(3000000); 
   int thread_id = omp_get_thread_num(); 
   //  printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
 
@@ -31,7 +30,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
       // Check which processor has the most data available
 
-      const int localCount = fullQueue_.size();
+      int localCount = fullQueue_.size();
 
       assert (MPI_Gather(&localCount,1,MPI_INTEGER,fullQueueCounts.data(),1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS);
 
@@ -60,7 +59,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	{
 	  // step 1: let all the xfer tasks know who will be scattering data
 
-	  assert( MPI_Bcast(&procMax, 1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
+	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
 	  // step 2: distribute data from procMax using special
 	  // scatter group with procmax as the leader
@@ -73,9 +72,9 @@ void sortio_Class::Transfer_Tasks_Work()
 
   // Send notice to xfer tasks to let them know we are all done
 
-  const int signalCompletion = -1;
+  int signalCompletion = -1;
 
-  assert( MPI_Bcast(&signalCompletion, 1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&signalCompletion,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
 #pragma omp critical (io_region_update)
   {

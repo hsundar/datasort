@@ -14,7 +14,7 @@ int main(int argc, char *argv[], char *env[])
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();
   sort_IO.Init_Read();  
-  sort_IO.BeginTransferProcess();
+  sort_IO.beginRecvTransferProcess();
   // sort_IO.ReadFiles();  
   // sort_IO.Summarize();
 
