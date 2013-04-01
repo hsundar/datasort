@@ -3,11 +3,11 @@
 
 [sortio]
 
-num_io_hosts = 348
+#num_io_hosts = 348
 #num_io_hosts = 256
 #num_io_hosts = 16
 #num_io_hosts = 16
-#num_io_hosts  = 8
+num_io_hosts  = 2
 num_files = 3000
 
 #max_read_buffers     = 150  

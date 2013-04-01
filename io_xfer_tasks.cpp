@@ -15,7 +15,7 @@ void sortio_Class::Transfer_Tasks_Work()
   //const int USLEEP_INTERVAL = 100;
   int numTransferedFiles = 0;
 
-  int thread_id = omp_get_thread_num(); 
+  //int thread_id = omp_get_thread_num(); 
   //  printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
 
   std::vector<int> fullQueueCounts(nio_tasks,0);
@@ -28,8 +28,11 @@ void sortio_Class::Transfer_Tasks_Work()
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
+  unsigned char *bufferRecv;
 
   buf_nums = new int[MAX_READ_BUFFERS];
+
+  bufferRecv = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
 
   while (numTransferedFiles < num_files_total)
     {
@@ -56,7 +59,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
       count++;
 
-      // Scatter data from the processor with the most data on hand;
+      // Distribute data from the processor with the most data on hand;
       // if no processors are ready yet, iterate and check again
 
       if(maxCount > 0)
@@ -71,14 +74,12 @@ void sortio_Class::Transfer_Tasks_Work()
 	      // scatter group with procmax as the leader
 
 	      int buf_num;
-	      //	      int totalFullBuffs = fullQueue_.size();
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
 		for(int i=0;i<maxCount;i++)
 		  {
 		    buf_nums[i] = fullQueue_.front();
-		    //buf_num = fullQueue_.front();
 		    fullQueue_.pop();
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from fullQueue\n",io_rank,buf_nums[i]);
 		  }
@@ -86,9 +87,24 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending %i buffers...\n",io_rank,maxCount);
 
-	      // todo: scatter using correct communicator
+	      // step 3: scatter from this rank to using correct communicator
 
-	      // step 3: flag this buffer as being eligible for read task to use again
+	      assert(procMax < Scatter_COMMS.size());
+	      MPI_Comm commScatter = Scatter_COMMS[procMax];
+
+
+///	      if(commScatter == MPI_COMM_NULL)
+///		{
+///		  printf("problem with comm on rank %i -- buf_number = %i\n",num_local,procMax);
+///		  assert(commScatter != MPI_COMM_NULL);
+///		}
+
+#if 1
+	      MPI_Scatter(&buffers[buf_nums[0]],100,MPI_UNSIGNED_CHAR,
+			  bufferRecv,100,MPI_UNSIGNED_CHAR,0,commScatter);
+#endif
+
+	      // step 4: flag this buffer as being eligible for read task to use again
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
