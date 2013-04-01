@@ -9,7 +9,10 @@
 void sortio_Class::Transfer_Tasks_Work()
 {
   assert(initialized);
+
   const int USLEEP_INTERVAL = 10000;
+  //const int USLEEP_INTERVAL = 1000;
+  //const int USLEEP_INTERVAL = 100;
   int numTransferedFiles = 0;
 
   int thread_id = omp_get_thread_num(); 
@@ -21,9 +24,12 @@ void sortio_Class::Transfer_Tasks_Work()
   // been read from IO_COMM and are transferred to SORT_COMM
 
   int count = 0;
+  int *buf_nums;
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
+
+  buf_nums = new int[MAX_READ_BUFFERS];
 
   while (numTransferedFiles < num_files_total)
     {
@@ -65,15 +71,20 @@ void sortio_Class::Transfer_Tasks_Work()
 	      // scatter group with procmax as the leader
 
 	      int buf_num;
+	      //	      int totalFullBuffs = fullQueue_.size();
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
-		buf_num = fullQueue_.front();
-		fullQueue_.pop();
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from emptyQueue\n",io_rank,buf_num);
+		for(int i=0;i<maxCount;i++)
+		  {
+		    buf_nums[i] = fullQueue_.front();
+		    //buf_num = fullQueue_.front();
+		    fullQueue_.pop();
+		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from fullQueue\n",io_rank,buf_nums[i]);
+		  }
 	      }
 
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending buf = %2i\n",io_rank,buf_num);
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending %i buffers...\n",io_rank,maxCount);
 
 	      // todo: scatter using correct communicator
 
@@ -81,14 +92,18 @@ void sortio_Class::Transfer_Tasks_Work()
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
-		emptyQueue_.push(buf_num);
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_num);
+		for(int i=0;i<maxCount;i++)
+		  {
+		    //emptyQueue_.push(buf_num);
+		    emptyQueue_.push(buf_nums[i]);
+		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_nums[i]);
+		  }
 	      }
 	    }
 
 	  // All IO ranks keep track of total number of files transferred
 
-	  numTransferedFiles++;
+	  numTransferedFiles += maxCount;
 	}
       else
 	usleep(USLEEP_INTERVAL);
@@ -109,6 +124,7 @@ void sortio_Class::Transfer_Tasks_Work()
   grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER completed\n",io_rank);
 
   //  delete [] fullQueueCounts;
+  delete [] buf_nums;
 
   return;
 }

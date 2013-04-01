@@ -335,7 +335,7 @@ void sortio_Class::SplitComm()
 	  scatter_comm_ranks[i].insert(scatter_comm_ranks[i].end(),tmp_scatter.begin(),tmp_scatter.end());
 
 	  assert(scatter_comm_ranks[i].size() == (nxfer_tasks - nio_tasks + 1) );
-	  printf("[sortio] --> Set %i global rank as leader (%zi ranks total)\n",scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
+	  printf("[sortio] --> Set %3i global rank as leader (%zi ranks total)\n",scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
 	  if(i == 0)
 	    nscatter_tasks = scatter_comm_ranks[i].size();
 	  else

@@ -60,6 +60,8 @@ void sortio_Class::Init_Read()
     }
   }
 
+  MPI_Barrier(XFER_COMM);
+
   return;
 }
 
@@ -180,11 +182,11 @@ void sortio_Class::ReadFiles()
       int buf_num;
       unsigned char *buffer;	
 
-#if 0
+#if 1
       // Stall briefly if no empty queue buffers are avilable
 
       if(emptyQueue_.size() == 0 )
-	for(int i=0;i<50;i++)
+	for(int i=0;i<5000;i++)
 	  {
 	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
 	    usleep(1000);
@@ -243,6 +245,7 @@ void sortio_Class::ReadFiles()
   isReadFinished_ = true;
 
   gt.EndTimer("Raw Read");
+
   return;
 
 }
