@@ -15,9 +15,6 @@ void sortio_Class::Transfer_Tasks_Work()
   //const int USLEEP_INTERVAL = 100;
   int numTransferedFiles = 0;
 
-  //int thread_id = omp_get_thread_num(); 
-  //  printf("[%i]: thread id for Master thread = %i\n",io_rank,thread_id);
-
   std::vector<int> fullQueueCounts(nio_tasks,0);
 
   // Start main data transfer loop; we continue until all files have
@@ -87,30 +84,21 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending %i buffers...\n",io_rank,maxCount);
 
-	      // step 3: scatter from this rank to using correct communicator
-
 	      assert(procMax < Scatter_COMMS.size());
 	      MPI_Comm commScatter = Scatter_COMMS[procMax];
 
+	      //const int numData = 1000000;
+	      const int numData = 10000;
 
-///	      if(commScatter == MPI_COMM_NULL)
-///		{
-///		  printf("problem with comm on rank %i -- buf_number = %i\n",num_local,procMax);
-///		  assert(commScatter != MPI_COMM_NULL);
-///		}
+	      MPI_Scatter(&buffers[buf_nums[0]],numData,MPI_UNSIGNED_CHAR,
+			  bufferRecv,numData,MPI_UNSIGNED_CHAR,0,commScatter);
 
-#if 1
-	      MPI_Scatter(&buffers[buf_nums[0]],100,MPI_UNSIGNED_CHAR,
-			  bufferRecv,100,MPI_UNSIGNED_CHAR,0,commScatter);
-#endif
-
-	      // step 4: flag this buffer as being eligible for read task to use again
+	      // step 3: flag this buffer as being eligible for read task to use again
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
 		for(int i=0;i<maxCount;i++)
 		  {
-		    //emptyQueue_.push(buf_num);
 		    emptyQueue_.push(buf_nums[i]);
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_nums[i]);
 		  }

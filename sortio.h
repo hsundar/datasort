@@ -36,7 +36,6 @@ class sortio_Class {
   void SplitComm();
   void Summarize();
   void Init_Read();
-  //  void Init_XFER();
   void IO_Tasks_Work();
   void Transfer_Tasks_Work();
   void beginRecvTransferProcess();

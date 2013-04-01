@@ -173,8 +173,6 @@ void sortio_Class::ReadFiles()
       if(fp == NULL)
 	MPI_Abort(MPI_COMM_WORLD,42);
 
-
-
       // pick available buffer for data storage; buffer is a
       // convenience pointer here which is set to empty data storage
       // prior to each raw read
@@ -186,7 +184,7 @@ void sortio_Class::ReadFiles()
       // Stall briefly if no empty queue buffers are avilable
 
       if(emptyQueue_.size() == 0 )
-	for(int i=0;i<5000;i++)
+	for(int i=0;i<500;i++)
 	  {
 	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
 	    usleep(1000);
@@ -238,7 +236,7 @@ void sortio_Class::ReadFiles()
 	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",io_rank,fullQueue_.size());
       }
 
-      grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
+      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
 
     } // end read iteration loop
 

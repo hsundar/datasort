@@ -469,18 +469,13 @@ void sortio_Class::SplitComm()
 	master_sort = true;
     }
 
-  // To facilitate data transfer from IO tasks to SORT tasks, we build
-  // up a number of convenience MPI_Scatter() communicators. There are
-  // num_io_hosts communicators which each contain all of the SORT MPI
-  // ranks, plus 1 IO ranks as the leader.
+  MPI_Barrier(GLOB_COMM);
 
-#if 0
-  if(is_xfer_task)
-    {
-      Scatter_comms.resize(num_io_hosts);
-      
-    }
-#endif
+  // verify current runtime restriction that we can evenly divide a single file into nxfer_tasks
+
+  // big-time hack for now....fixme
+
+  assert( (1000000 % nxfer_tasks) == 0);
 
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
