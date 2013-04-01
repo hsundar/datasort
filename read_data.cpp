@@ -171,15 +171,16 @@ void sortio_Class::ReadFiles()
       if(fp == NULL)
 	MPI_Abort(MPI_COMM_WORLD,42);
 
-      records_per_file = 0;
+
 
       // pick available buffer for data storage; buffer is a
       // convenience pointer here which is set to empty data storage
       // prior to each raw read
 
       int buf_num;
-      unsigned char *buffer;	// 
+      unsigned char *buffer;	
 
+#if 0
       // Stall briefly if no empty queue buffers are avilable
 
       if(emptyQueue_.size() == 0 )
@@ -190,6 +191,7 @@ void sortio_Class::ReadFiles()
 	    if(emptyQueue_.size() > 0)
 	      break;
 	  }
+#endif
       
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {
@@ -197,17 +199,24 @@ void sortio_Class::ReadFiles()
 	assert(emptyQueue_.size() > 0);
 	buf_num = emptyQueue_.front();
 	emptyQueue_.pop();
+
+	assert(buf_num < MAX_READ_BUFFERS);
       }
 
-      buffer    = buffers[buf_num];
-      read_size = REC_SIZE;
+      // initialize for next file read
+
+      buffer           = buffers[buf_num];
+      read_size        = REC_SIZE;
+      records_per_file = 0;
+
+      // read till end of file (we assume file is even multiple of REC_SIZE)
 
       while(read_size == REC_SIZE)
 	{
 
 	  // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
-	  read_size = fread(&buffer[num_records_read*REC_SIZE],1,REC_SIZE,fp);
+	  read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
 	  //read_size = fread(rec_buf,1,REC_SIZE,fp);
 
 	  if(read_size == 0)

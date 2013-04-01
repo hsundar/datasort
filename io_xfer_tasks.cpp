@@ -9,7 +9,7 @@
 void sortio_Class::Transfer_Tasks_Work()
 {
   assert(initialized);
-  const int USLEEP_INTERVAL = 10;
+  const int USLEEP_INTERVAL = 10000;
   int numTransferedFiles = 0;
 
   int thread_id = omp_get_thread_num(); 
@@ -26,7 +26,6 @@ void sortio_Class::Transfer_Tasks_Work()
   int maxCount;
 
   while (numTransferedFiles < num_files_total)
-    //while ( !isReadFinished_ && fullQueue_.size() > 0)
     {
 
       // Check which processor has the most data available
@@ -51,9 +50,6 @@ void sortio_Class::Transfer_Tasks_Work()
 
       count++;
 
-      //      if(count > 100)
-      //	numTransferedFiles = num_files_total;// hack
-
       // Scatter data from the processor with the most data on hand;
       // if no processors are ready yet, iterate and check again
 
@@ -74,10 +70,10 @@ void sortio_Class::Transfer_Tasks_Work()
 	      {
 		buf_num = fullQueue_.front();
 		fullQueue_.pop();
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed%i buff from emptyQueue\n",io_rank,buf_num);
+		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from emptyQueue\n",io_rank,buf_num);
 	      }
 
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: Sending buf = %2i\n",io_rank,buf_num);
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending buf = %2i\n",io_rank,buf_num);
 
 	      // todo: scatter using correct communicator
 
@@ -86,7 +82,7 @@ void sortio_Class::Transfer_Tasks_Work()
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
 		emptyQueue_.push(buf_num);
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff to emptyQueue\n",io_rank,buf_num);
+		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_num);
 	      }
 	    }
 
