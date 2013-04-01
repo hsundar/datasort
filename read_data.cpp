@@ -38,15 +38,6 @@ void sortio_Class::Init_Read()
 		  MAX_READ_BUFFERS,MAX_FILE_SIZE_IN_MBS);
     }
 
-#if 0
-  // Initialize region_flag used for thread coordination between
-  // reader and data xfer threads. If false, the region is empty and
-  // is available to be read into. If true, the region is populated
-  // with sort data and is ready to be read from by the xfer thread.
-
-  std::vector<bool> region_flag(MAX_REGIONS,false);
-#endif
-
   gt.EndTimer("Init Read");
 
   // Initialize and launch threading environment for an asychronous
@@ -70,7 +61,6 @@ void sortio_Class::Init_Read()
   }
 
   return;
-
 }
 
 // --------------------------------------------------------------------
@@ -189,15 +179,28 @@ void sortio_Class::ReadFiles()
 
       int buf_num;
       unsigned char *buffer;	// 
+
+      // Stall briefly if no empty queue buffers are avilable
+
+      if(emptyQueue_.size() == 0 )
+	for(int i=0;i<50;i++)
+	  {
+	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
+	    usleep(1000);
+	    if(emptyQueue_.size() > 0)
+	      break;
+	  }
       
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {
 	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",io_rank,emptyQueue_.size());
+	assert(emptyQueue_.size() > 0);
 	buf_num = emptyQueue_.front();
 	emptyQueue_.pop();
       }
 
-      buffer  = buffers[buf_num];
+      buffer    = buffers[buf_num];
+      read_size = REC_SIZE;
 
       while(read_size == REC_SIZE)
 	{
@@ -226,7 +229,7 @@ void sortio_Class::ReadFiles()
 
       grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
 
-    }
+    } // end read iteration loop
 
   isReadFinished_ = true;
 

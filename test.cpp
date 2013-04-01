@@ -16,7 +16,7 @@ int main(int argc, char *argv[], char *env[])
   sort_IO.Init_Read();  
   sort_IO.beginRecvTransferProcess();
   // sort_IO.ReadFiles();  
-  // sort_IO.Summarize();
+  sort_IO.Summarize();
 
   return 0;
 }

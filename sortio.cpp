@@ -43,6 +43,11 @@ void sortio_Class::Override_nFiles(int nfiles)
 void sortio_Class::Summarize()
 {
 
+  // This routine is only meaningful on IO_tasks
+
+  if(!is_io_task)
+    return;
+
   fflush(NULL);
   MPI_Barrier(IO_COMM);
 
@@ -64,7 +69,8 @@ void sortio_Class::Summarize()
   double time_local = gt.ElapsedSeconds("Raw Read");
   double read_rate  = 1.0*num_records_read*REC_SIZE/(1000*1000*1000*time_local);
 
-
+  printf("# records read from rank %i = %zi\n",num_local,num_records_read);
+  
   assert(time_local > 0.0);
   assert(num_records_read > 0);
 
