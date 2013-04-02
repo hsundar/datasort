@@ -11,7 +11,8 @@ sortio_Class::sortio_Class()
   master_io                 = false;
   master_xfer               = false;
   master_sort               = false;
-  override_numfiles         = false;
+  overrideNumFiles_         = false;
+  overrideNumIOHosts_       = false;
   random_read_offset        = false;
   mpi_initialized_by_sortio = false;
   is_io_task                = false;
@@ -33,10 +34,17 @@ sortio_Class::~sortio_Class()
     MPI_Finalize();
 }
 
-void sortio_Class::Override_nFiles(int nfiles)
+void sortio_Class::overrideNumFiles(int nfiles)
 {
-  override_numfiles = true;
+  overrideNumFiles_ = true;
   num_files_total   = nfiles;
+  return;
+}
+
+void sortio_Class::overrideNumIOHosts(int hosts)
+{
+  overrideNumIOHosts_ = true;
+  num_io_hosts        = hosts;
   return;
 }
 
@@ -157,7 +165,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       GRVY::GRVY_Input_Class iparse;
 
       assert( iparse.Open    ("input.dat")                         != 0);
-      if(!override_numfiles)
+      if(!overrideNumFiles_)
 	assert( iparse.Read_Var("sortio/num_files",&num_files_total) != 0);
 
       // Register defaults
@@ -165,7 +173,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/max_read_buffers",     10);
       iparse.Register_Var("sortio/max_file_size_in_mbs",100);
 
-      assert( iparse.Read_Var("sortio/num_io_hosts",        &num_io_hosts)         != 0 );
+      if(!overrideNumIOHosts_)
+	assert( iparse.Read_Var("sortio/num_io_hosts",        &num_io_hosts)         != 0 );
       assert( iparse.Read_Var("sortio/input_dir",           &indir)                != 0 );
       assert( iparse.Read_Var("sortio/max_read_buffers",    &MAX_READ_BUFFERS)     != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs",&MAX_FILE_SIZE_IN_MBS) != 0 );
@@ -335,7 +344,8 @@ void sortio_Class::SplitComm()
 	  scatter_comm_ranks[i].insert(scatter_comm_ranks[i].end(),tmp_scatter.begin(),tmp_scatter.end());
 
 	  assert(scatter_comm_ranks[i].size() == (nxfer_tasks - nio_tasks + 1) );
-	  printf("[sortio] --> Set %3i global rank as leader (%zi ranks total)\n",scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
+	  printf("[sortio] --> Set %3i global rank as leader (%zi ranks total)\n",
+		 scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
 	  if(i == 0)
 	    nscatter_tasks = scatter_comm_ranks[i].size();
 	  else
@@ -475,7 +485,7 @@ void sortio_Class::SplitComm()
 
   // big-time hack for now....fixme
 
-  assert( (1000000 % nxfer_tasks) == 0);
+  //assert( (1000000 % nscatter_tasks) == 0);
 
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)

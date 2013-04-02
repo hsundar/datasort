@@ -31,7 +31,8 @@ class sortio_Class {
  ~sortio_Class();
 
   void Initialize(std::string inputfile, MPI_Comm IN_COMM);
-  void Override_nFiles(int nfiles);
+  void overrideNumFiles  (int nfiles);
+  void overrideNumIOHosts(int hosts);
   void ReadFiles(); 
   void SplitComm();
   void Summarize();
@@ -43,7 +44,8 @@ class sortio_Class {
  private:
   bool master;			        // master task?
   bool initialized;		        // class initialized?
-  bool override_numfiles;               // Override num_files setting?
+  bool overrideNumFiles_;               // Override num_files setting?
+  bool overrideNumIOHosts_;             // Override num_io_hosts setting?
   bool random_read_offset;              // Randomly change rank ordering for read to minimize cache effects?
   bool mpi_initialized_by_sortio;       // did we have to call MPI_Init()?
   int  num_files_total;		        // total # of input files to sort

@@ -29,7 +29,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
   buf_nums = new int[MAX_READ_BUFFERS];
 
-  bufferRecv = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+  bufferRecv = (unsigned char*) calloc(2*MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
 
   while (numTransferedFiles < num_files_total)
     {
@@ -87,11 +87,23 @@ void sortio_Class::Transfer_Tasks_Work()
 	      assert(procMax < Scatter_COMMS.size());
 	      MPI_Comm commScatter = Scatter_COMMS[procMax];
 
-	      //const int numData = 1000000;
-	      const int numData = 10000;
+	      //const int numData = (1000000 / nxfer_tasks);
+	      //const int numData = 10000;
+	      //const int numData = (1000000 / nscatter_tasks);
+	      const int numData = 18250;
+	      //const int numData = 100000;
+
+	      assert(buffers[buf_nums[0]] != NULL);
+
+	      assert(buf_nums[0] < MAX_READ_BUFFERS);
+	      assert(numData < MAX_FILE_SIZE_IN_MBS*1024*1024);
+	      assert(numData*nscatter_tasks <= 100*100*100);
 
 	      MPI_Scatter(&buffers[buf_nums[0]],numData,MPI_UNSIGNED_CHAR,
 			  bufferRecv,numData,MPI_UNSIGNED_CHAR,0,commScatter);
+
+	      printf("[sortio][IO/XFER][%.4i] Just scattered %i (MB) of data\n",io_rank,
+		     numData*nscatter_tasks/(1000*1000));
 
 	      // step 3: flag this buffer as being eligible for read task to use again
 
