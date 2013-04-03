@@ -38,9 +38,11 @@ class sortio_Class {
   void Summarize();
   void Init_Read();
   void IO_Tasks_Work();
-  void SendDataToXFERTasks(int numBufferstoSend);
+  void SendDataToXFERTasks(int numBufferstoSend, int destination);
+  void RecvDataFromIOTasks();
   void Transfer_Tasks_Work();
   void beginRecvTransferProcess();
+  int  CycleDestRank();
 
  private:
   bool master;			        // master task?
@@ -87,6 +89,7 @@ class sortio_Class {
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
+  int      nextDestRank_;		// cyclic counter for next xfer rank to send data to
   int      nscatter_tasks;		// number of scatter tasks per scatter communicator
   std::vector<MPI_Comm> Scatter_COMMS;  // List of communicators which contain only one IO task as rank leader
 

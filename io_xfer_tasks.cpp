@@ -22,14 +22,21 @@ void sortio_Class::Transfer_Tasks_Work()
 
   int count = 0;
   int *buf_nums;
+  MPI_Request *sendRequests;
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
   unsigned char *bufferRecv;
+  //int numActiveSends = 0;
+  int destRank = nio_tasks;
+  std::vector<int> numActiveSends(nio_tasks,0);
 
-  buf_nums = new int[MAX_READ_BUFFERS];
+  buf_nums     = new int[MAX_READ_BUFFERS];
+  sendRequests = new MPI_Request[MAX_READ_BUFFERS];
 
   bufferRecv = (unsigned char*) calloc(2*MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+
+  nextDestRank_ = nio_tasks;
 
   while (numTransferedFiles < num_files_total)
     {
@@ -63,7 +70,11 @@ void sortio_Class::Transfer_Tasks_Work()
 	{
 	  // step 1: let all the xfer tasks know who will be scattering data
 
+#if 1
+	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
+#else
 	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
+#endif
 
 	  if(io_rank == procMax)
 	    {
@@ -96,10 +107,47 @@ void sortio_Class::Transfer_Tasks_Work()
 	      assert(buffers[buf_nums[0]] != NULL);
 	      assert(buf_nums[0] < MAX_READ_BUFFERS);
 	      assert(numData < MAX_FILE_SIZE_IN_MBS*1024*1024);
-	      assert(numData*nscatter_tasks <= 100*100*100);
+	      //	      assert(numData*nscatter_tasks <= 100*100*100);
 
 #if 1
-	      SendDataToXFERTasks(maxCount);
+	      const int tagXFER = 1000;
+
+	      // verify no outstanding messages
+
+	      int flag;
+	      MPI_Status status;
+
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] num active sends = %i\n",io_rank,numActiveSends[io_rank]);
+
+	      const int numSendsPosted = numActiveSends[io_rank];
+
+	      for(int i=0;i<numSendsPosted;i++)
+		{
+		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] i = %i (max = %i)\n",io_rank,i,numActiveSends[io_rank]);
+
+		  MPI_Test(&sendRequests[i],&flag,&status);
+		  if(!flag)
+		    {
+		      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Stalling for previously unfinished iSend\n",io_rank);
+		      MPI_Wait(&sendRequests[i],&status);
+		    }
+		  numActiveSends[io_rank]--;
+		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] --> decremented to %i (max = %i)\n",
+			      io_rank,numActiveSends[io_rank]);
+		}
+
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,numActiveSends[io_rank]);
+	      assert(numActiveSends[io_rank] == 0);
+
+	      for(int i=0;i<maxCount;i++)
+		{
+		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i\n",io_rank,nextDestRank_);
+		  MPI_Isend(&buffers[buf_nums[0]],100,MPI_UNSIGNED_CHAR,CycleDestRank(),
+			    tagXFER,XFER_COMM,&sendRequests[i]);
+		  numActiveSends[io_rank]++;
+		}
+
+	      //SendDataToXFERTasks(maxCount,procMax);
 #else
 
 	      MPI_Scatter(&buffers[buf_nums[0]],numData,MPI_UNSIGNED_CHAR,
@@ -108,6 +156,9 @@ void sortio_Class::Transfer_Tasks_Work()
 	      printf("[sortio][IO/XFER][%.4i] Just scattered %i (MB) of data\n",io_rank,
 		     numData*nscatter_tasks/(1000*1000));
 #endif
+
+	      // fixme todo: need to cache buf_nums on a per rank
+	      // basis; only release the buff once isend is complete
 
 	      // step 3: flag this buffer as being eligible for read task to use again
 
@@ -119,11 +170,21 @@ void sortio_Class::Transfer_Tasks_Work()
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
+	    } 
+	  else
+	    {
+	      for(int i=0;i<maxCount;i++)
+		CycleDestRank();
 	    }
 
 	  // All IO ranks keep track of total number of files transferred
 
 	  numTransferedFiles += maxCount;
+	  destRank           += maxCount;
+
+	  // cyclic distribution to children in XFER_COMM
+	  //	  if(destRank >= nxfer_tasks)
+	  //	    destRank = nio_tasks;
 	}
       else
 	usleep(USLEEP_INTERVAL);
@@ -145,6 +206,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
   //  delete [] fullQueueCounts;
   delete [] buf_nums;
+  delete [] sendRequests;
 
   return;
 }
@@ -155,8 +217,28 @@ void sortio_Class::Transfer_Tasks_Work()
 // receiving tasks in XFER_COMM
 // --------------------------------------------------------------------
 
-void sortio_Class::SendDataToXFERTasks(int numBuffers)
+void sortio_Class::SendDataToXFERTasks(int numBuffers,int destination)
 {
 
+  // To begin, we impose a single src->destination xfer rule
+  // (ie. pause if a previous set of sends from this src to this
+  // destination have not completed.
 
+  int src = io_rank;
+
+  //  if
+
+
+}
+
+int sortio_Class::CycleDestRank()
+{
+  int startingDestRank = nextDestRank_;
+
+  nextDestRank_++;
+
+  if(nextDestRank_ >= nxfer_tasks)
+    nextDestRank_ = nio_tasks;
+
+  return(startingDestRank);
 }
