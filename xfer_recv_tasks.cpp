@@ -30,44 +30,15 @@ void sortio_Class::beginRecvTransferProcess()
 
   buffer = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
 
-  //  while(true)
+  // Start of main Recv loop; each rank takes a turn receiving file
+  // contents and distributing to local SORT_COMM processes for subsequent sort
+
   for(int ifile=0;ifile<num_files_total;ifile++)
     {
 
       if(xfer_rank == recvRank)
 	grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: file %7i of %7i\n",ifile++,num_files_total);
-#if 0
-      assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
-      if(procMax == -1)		// signals that xfer process is finished
-	{
-	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: data XFER completed (iter=%i)\n",xfer_rank,count);
-	  break;
-	}
-      else if(procMax > 0)
-	{
-	  assert(Scatter_COMMS[procMax] != MPI_COMM_NULL);
-
-	  //const int numData = 1000000; // 100 MB file
-	  //const const int numData = 10000;
-	  //const int numData = 100000;
-	  const int numData = 18250;
-	  //const int numData = (1000000 / nscatter_tasks);
-
-	  //assert(numData < (1000000 / nxfer_tasks));
-	  //const int numData = (1000000 / nxfer_tasks);
-
-	  MPI_Scatter(NULL,numData,MPI_UNSIGNED_CHAR,
-		      &buffer[0],numData,MPI_UNSIGNED_CHAR,0,Scatter_COMMS[procMax]);
-
-	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i]: scatter complete from [%.4i]\n",xfer_rank,procMax);
-
-	}
-
-      if(xfer_rank == (nxfer_tasks -1))
-	grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: initiaing data XFER from [%.4i]\n",xfer_rank,procMax);
-
-#else
       if(xfer_rank == recvRank)
 	{
 	  MPI_Status status;
@@ -80,8 +51,6 @@ void sortio_Class::beginRecvTransferProcess()
 	  if(recvRank >= nxfer_tasks)
 	    recvRank = nio_tasks;
 	}
-#endif
-
       count++;
     }
 

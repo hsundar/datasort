@@ -118,34 +118,23 @@ void sortio_Class::Transfer_Tasks_Work()
 		// release previous buffers which have now had their
 		// send completed
 
-		for(int i=0;i<numSendsPostedPreviously)
-		  fullQueue_.push(buf_nums[i]);
+		//for(int i=0;i<numSendsPostedPreviously)
+		//		  fullQueue_.push(buf_nums[i]);
 
 		// identify next set of data buffers to send.
 
 		for(int i=0;i<maxCount;i++)
 		  {
 		    buf_nums[i] = fullQueue_.front();
-		    fullQueue_.pop();
+		    fullQueue_.pop_front();
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from fullQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
 
 	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending %i buffers...\n",io_rank,maxCount);
 
-	      //assert(procMax < Scatter_COMMS.size());
-	      //MPI_Comm commScatter = Scatter_COMMS[procMax];
-
-	      //const int numData = (1000000 / nxfer_tasks);
-	      //const int numData = 10000;
-	      //const int numData = (1000000 / nscatter_tasks);
-	      //const int numData = 18250;
-	      //const int numData = 100000;
-
 	      assert(buffers[buf_nums[0]] != NULL);
 	      assert(buf_nums[0] < MAX_READ_BUFFERS);
-	      //assert(numData < MAX_FILE_SIZE_IN_MBS*1024*1024);
-	      //	      assert(numData*nscatter_tasks <= 100*100*100);
 
 #if 1
 	      const int tagXFER = 1000;
@@ -159,13 +148,6 @@ void sortio_Class::Transfer_Tasks_Work()
 		}
 
 	      //SendDataToXFERTasks(maxCount,procMax);
-#else
-
-	      MPI_Scatter(&buffers[buf_nums[0]],numData,MPI_UNSIGNED_CHAR,
-			  bufferRecv,numData,MPI_UNSIGNED_CHAR,0,commScatter);
-
-	      printf("[sortio][IO/XFER][%.4i] Just scattered %i (MB) of data\n",io_rank,
-		     numData*nscatter_tasks/(1000*1000));
 #endif
 
 	      // fixme todo: need to cache buf_nums on a per rank
@@ -177,7 +159,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      {
 		for(int i=0;i<maxCount;i++)
 		  {
-		    emptyQueue_.push(buf_nums[i]);
+		    emptyQueue_.push_back(buf_nums[i]);
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
@@ -193,9 +175,6 @@ void sortio_Class::Transfer_Tasks_Work()
 	  numTransferedFiles += maxCount;
 	  destRank           += maxCount;
 
-	  // cyclic distribution to children in XFER_COMM
-	  //	  if(destRank >= nxfer_tasks)
-	  //	    destRank = nio_tasks;
 	}
       else
 	usleep(USLEEP_INTERVAL);
@@ -243,11 +222,9 @@ void sortio_Class::SendDataToXFERTasks(int numBuffers,int destination)
 // check on messages in flight and free up data transfer buffers for
 // any which have completed.
 
-void sortio_Class::CheckForSendCompletion(bool waitFlag)
+void sortio_Class::checkForSendCompletion(bool waitFlag)
 {
-  for(int i=0;i<numActiveSends_;i++)
-    {
-      if(
+
 
 }
 

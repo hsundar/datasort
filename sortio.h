@@ -12,6 +12,7 @@
 #include <sstream>
 #include <algorithm>
 #include <queue>
+#include <list>
 #include "mpi.h"
 #include "grvy.h"
 
@@ -27,7 +28,7 @@
 typedef struct MsgRecord {
   int bufNum;			// buffer num in use by message
   MPI_Request handle;		// MPI message request handle
-}
+} MsgRecord;
 
 class sortio_Class {
 
@@ -48,6 +49,7 @@ class sortio_Class {
   void Transfer_Tasks_Work();
   void beginRecvTransferProcess();
   int  CycleDestRank();
+  void checkForSendCompletion(bool waitFlag);
 
  private:
   bool master;			        // master task?
@@ -83,8 +85,8 @@ class sortio_Class {
   int      MAX_READ_BUFFERS;	        // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
   std::vector<unsigned char *> buffers; // read buffers
-  std::queue <size_t> emptyQueue_;      // fifo queue to flag empty read buffers
-  std::queue <size_t> fullQueue_;       // fifo queue to flag full read buffers
+  std::list <size_t> emptyQueue_;      // queue to flag empty read buffers
+  std::list <size_t> fullQueue_;       // queue to flag full read buffers
 
   // Data transfer tasks
 
