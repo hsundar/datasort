@@ -24,6 +24,11 @@
 #define DEBUG GRVY_DEBUG
 #define ERROR GRVY_INFO
 
+typedef struct MsgRecord {
+  int bufNum;			// buffer num in use by message
+  MPI_Request handle;		// MPI message request handle
+}
+
 class sortio_Class {
 
  public:
