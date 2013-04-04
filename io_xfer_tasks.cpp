@@ -26,14 +26,10 @@ void sortio_Class::Transfer_Tasks_Work()
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
-  unsigned char *bufferRecv;
   int destRank = nio_tasks;
   bool waitFlag;
 
-  buf_nums     = new int[MAX_READ_BUFFERS];
-
-  bufferRecv = (unsigned char*) calloc(2*MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
-
+  buf_nums      = new int[MAX_READ_BUFFERS];
   nextDestRank_ = nio_tasks;
 
   while (numTransferedFiles < num_files_total)
@@ -108,7 +104,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		  MPI_Isend(&buffers[buf_nums[i]],100,MPI_UNSIGNED_CHAR,CycleDestRank(),
 			    tagXFER,XFER_COMM,&requestHandle);
 		  
-		  // marsk these messages as being in flight
+		  // queue these messages as being in flight
 
 		  MsgRecord message(buf_nums[i],requestHandle);
 		  messageQueue_.push_back(message);
@@ -135,13 +131,6 @@ void sortio_Class::Transfer_Tasks_Work()
 
     } //  end xfer of all files
 
-  // Send notice to xfer tasks to let them know we are all done
-
-  int signalCompletion = -1;
-
-  //  assert( MPI_Bcast(&signalCompletion,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
-
-  MPI_Barrier(IO_COMM);
   grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",io_rank);
 
   delete [] buf_nums;
