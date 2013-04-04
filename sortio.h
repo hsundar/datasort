@@ -57,7 +57,6 @@ class sortio_Class {
   void Summarize();
   void Init_Read();
   void IO_Tasks_Work();
-  void SendDataToXFERTasks(int numBufferstoSend, int destination);
   void RecvDataFromIOTasks();
   void Transfer_Tasks_Work();
   void beginRecvTransferProcess();

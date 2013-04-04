@@ -66,11 +66,8 @@ void sortio_Class::Transfer_Tasks_Work()
       if(maxCount > 0)
 	{
 	  // step 1: let all the xfer tasks know who will be scattering data
-#if 1
+
 	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
-#else
-	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
-#endif
 
 	  if(io_rank == procMax)
 	    {
@@ -142,31 +139,14 @@ void sortio_Class::Transfer_Tasks_Work()
 
   int signalCompletion = -1;
 
-  assert( MPI_Bcast(&signalCompletion,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
+  //  assert( MPI_Bcast(&signalCompletion,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
-  grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER completed\n",io_rank);
+  MPI_Barrier(IO_COMM);
+  grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",io_rank);
 
   delete [] buf_nums;
 
   return;
-}
-
-
-// --------------------------------------------------------------------
-// SendDataToXFERTasks(): asynchronously distribute buffer(s) to 
-// receiving tasks in XFER_COMM
-// --------------------------------------------------------------------
-
-void sortio_Class::SendDataToXFERTasks(int numBuffers,int destination)
-{
-
-  // To begin, we impose a single src->destination xfer rule
-  // (ie. pause if a previous set of sends from this src to this
-  // destination have not completed.
-
-  int src = io_rank;
-
-
 }
 
 // Check on messages in flight and free up data transfer buffers for
