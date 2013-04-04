@@ -147,7 +147,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		  tagXFER++;
 		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
 			      io_rank,nextDestRank_,tagXFER);
-#if 1
+#if 0
 
 		  //		  MPI_Send(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
 		  //			    tagXFER,XFER_COMM);
@@ -162,11 +162,11 @@ void sortio_Class::Transfer_Tasks_Work()
 		  addBuffertoEmptyQueue(buf_nums[i]);
 		  
 #else
-		  //		  MPI_Isend(&buffers[buf_nums[i]],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
-		  //			    tagXFER,XFER_COMM,&requestHandle);
-
-		  MPI_Isend(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+		  MPI_Isend(&buffers[buf_nums[i]][0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
 			    tagXFER,XFER_COMM,&requestHandle);
+
+		  //		  MPI_Isend(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+		  //			    tagXFER,XFER_COMM,&requestHandle);
 
 		  // queue up these messages as being in flight
 
