@@ -22,18 +22,18 @@ void sortio_Class::Transfer_Tasks_Work()
 
   int count = 0;
   int *buf_nums;
-  MPI_Request *sendRequests;
+  //  MPI_Request *sendRequests;
+  MPI_Request requestHandle;
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
   unsigned char *bufferRecv;
-  int numActiveSends = 0;
+  //  int numActiveSends = 0;
   int destRank = nio_tasks;
-  //  std::vector<int> bufNumsPrev(MAX_READ_BUFFERS);
-  //std::vector<int> numActiveSends(nio_tasks,0);
+  bool waitFlag;
 
   buf_nums     = new int[MAX_READ_BUFFERS];
-  sendRequests = new MPI_Request[MAX_READ_BUFFERS];
+  //  sendRequests = new MPI_Request[MAX_READ_BUFFERS];
 
   bufferRecv = (unsigned char*) calloc(2*MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
 
@@ -41,7 +41,6 @@ void sortio_Class::Transfer_Tasks_Work()
 
   while (numTransferedFiles < num_files_total)
     {
-
       // Check which processor has the most data available
 
       int localCount = fullQueue_.size();
@@ -70,7 +69,6 @@ void sortio_Class::Transfer_Tasks_Work()
       if(maxCount > 0)
 	{
 	  // step 1: let all the xfer tasks know who will be scattering data
-
 #if 1
 	  assert( MPI_Bcast(&procMax,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
 #else
@@ -79,48 +77,24 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	  if(io_rank == procMax)
 	    {
+	      // verify that we have no remaining outstanding messages
+	      // on this processor (wait if we do)
 
-	      // verify no outstanding messages in flight and release
-	      // xfer buffers from last send
+	      checkForSendCompletion(waitFlag=true);
 
-	      int flag;
-	      MPI_Status status;
+	      //grvy_printf(INFO,"[sortio][IO/XFER][%.4i] num active sends = %i\n",io_rank,numActiveSends);
 
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] num active sends = %i\n",io_rank,numActiveSends);
-
-	      const int numSendsPostedPreviously = numActiveSends;
-
-	      for(int i=0;i<numSendsPostedPreviously;i++)
-		{
-		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] i = %i (max = %i)\n",io_rank,i,numActiveSends);
-
-		  MPI_Test(&sendRequests[i],&flag,&status);
-		  if(!flag)
-		    {
-		      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Stalling for previously unfinished iSend\n",io_rank);
-		      MPI_Wait(&sendRequests[i],&status);
-		    }
-		  numActiveSends--;
-		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] --> decremented to %i (max = %i)\n",
-			      io_rank,numActiveSends);
-		}
-
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,numActiveSends);
-	      assert(numActiveSends == 0);
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,messageQueue_.size());
+	      assert(messageQueue_.size() == 0);
 
 	      // step 2: distribute data from procMax using special
 	      // scatter group with procmax as the leader
 
+#if 1
 	      int buf_num;
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
-		// release previous buffers which have now had their
-		// send completed
-
-		//for(int i=0;i<numSendsPostedPreviously)
-		//		  fullQueue_.push(buf_nums[i]);
-
 		// identify next set of data buffers to send.
 
 		for(int i=0;i<maxCount;i++)
@@ -130,7 +104,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from fullQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
-
+#endif
 	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Sending %i buffers...\n",io_rank,maxCount);
 
 	      assert(buffers[buf_nums[0]] != NULL);
@@ -142,9 +116,14 @@ void sortio_Class::Transfer_Tasks_Work()
 	      for(int i=0;i<maxCount;i++)
 		{
 		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i\n",io_rank,nextDestRank_);
-		  MPI_Isend(&buffers[buf_nums[0]],100,MPI_UNSIGNED_CHAR,CycleDestRank(),
-			    tagXFER,XFER_COMM,&sendRequests[i]);
-		  numActiveSends++;
+		  MPI_Isend(&buffers[buf_nums[i]],100,MPI_UNSIGNED_CHAR,CycleDestRank(),
+			    tagXFER,XFER_COMM,&requestHandle);
+		  
+		  // track these messages in flight
+
+		  MsgRecord message(buf_nums[i],requestHandle);
+		  messageQueue_.push_back(message);
+		  //numActiveSends++;
 		}
 
 	      //SendDataToXFERTasks(maxCount,procMax);
@@ -155,6 +134,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	      // step 3: flag this buffer as being eligible for read task to use again
 
+#if 0
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
 		for(int i=0;i<maxCount;i++)
@@ -163,6 +143,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
+#endif
 	    } 
 	  else
 	    {
@@ -174,6 +155,10 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	  numTransferedFiles += maxCount;
 	  destRank           += maxCount;
+
+	  // Check for any completed messages prior to next iteration
+
+	  checkForSendCompletion(waitFlag=false);
 
 	}
       else
@@ -187,16 +172,10 @@ void sortio_Class::Transfer_Tasks_Work()
 
   assert( MPI_Bcast(&signalCompletion,1,MPI_INTEGER,0,XFER_COMM) == MPI_SUCCESS );
 
-#pragma omp critical (io_region_update)
-  {
-    // update region_flag here
-  }
-
   grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER completed\n",io_rank);
 
-  //  delete [] fullQueueCounts;
   delete [] buf_nums;
-  delete [] sendRequests;
+  //  delete [] sendRequests;
 
   return;
 }
@@ -219,13 +198,69 @@ void sortio_Class::SendDataToXFERTasks(int numBuffers,int destination)
 
 }
 
-// check on messages in flight and free up data transfer buffers for
+// Check on messages in flight and free up data transfer buffers for
 // any which have completed.
 
 void sortio_Class::checkForSendCompletion(bool waitFlag)
 {
 
+  // NOOP if we have no outstanding messages
 
+  if(messageQueue_.size() == 0)
+    return;
+
+  std::list<MsgRecord>::iterator it = messageQueue_.begin();
+
+  //  for(it=messageQueue_.begin();it != messageQueue_.end();++it)
+  while(it != messageQueue_.end() )
+    {
+      int messageCompleted, bufNum;
+      MPI_Status status;
+      MPI_Request handle;
+
+      bufNum = it->getBufNum();
+      handle = it->getHandle();
+
+      //MsgRecord currentMsg(bufNum,handle);
+
+      // check if iSend has completed
+
+      MPI_Test(&handle,&messageCompleted,&status);
+
+      if(messageCompleted)
+	{
+	  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] message from buf %i complete \n",io_rank,bufNum);
+
+	  it = messageQueue_.erase(it++);
+	  //messageQueue_.remove(currentMsg);
+	  
+	  // re-enable this buffer for eligibility
+	  
+          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+	  {
+	    emptyQueue_.push_back(bufNum);
+	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
+	  }
+	}
+      else if(waitFlag)
+	{
+	  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Stalling for previously unfinished iSend (buf=%i)\n",
+		      io_rank,bufNum);
+	  MPI_Wait(&handle,&status);
+	  //messageQueue_.remove(currentMsg);
+	  it = messageQueue_.erase(it++);
+
+          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+	  {
+	    emptyQueue_.push_back(bufNum);
+	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
+	  }
+	}
+      else
+	++it;	// <-- message still active
+    }
+
+  return;
 }
 
 int sortio_Class::CycleDestRank()

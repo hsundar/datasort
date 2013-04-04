@@ -25,10 +25,23 @@
 #define DEBUG GRVY_DEBUG
 #define ERROR GRVY_INFO
 
-typedef struct MsgRecord {
-  int bufNum;			// buffer num in use by message
-  MPI_Request handle;		// MPI message request handle
-} MsgRecord;
+// simple MPI message record - used to track active messages in flight
+
+class MsgRecord {
+  
+  int bufNum_;			// buffer num in use by message
+  MPI_Request handle_;		// MPI message request handle
+  
+public:
+  MsgRecord() : bufNum_(0), handle_(0) { }
+  MsgRecord(const int bufNum,const int handle) {bufNum_=bufNum; handle_ = handle;}
+
+  // we call it a match if bufNum equals
+  bool operator == (const MsgRecord &rhs) { return(rhs.bufNum_ == bufNum_ ); }
+  // access
+  int getBufNum() { return(bufNum_); }
+  int getHandle() { return(handle_); }
+};
 
 class sortio_Class {
 
@@ -85,8 +98,8 @@ class sortio_Class {
   int      MAX_READ_BUFFERS;	        // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
   std::vector<unsigned char *> buffers; // read buffers
-  std::list <size_t> emptyQueue_;      // queue to flag empty read buffers
-  std::list <size_t> fullQueue_;       // queue to flag full read buffers
+  std::list <size_t> emptyQueue_;       // queue to flag empty read buffers
+  std::list <size_t> fullQueue_;        // queue to flag full read buffers
 
   // Data transfer tasks
 
@@ -99,7 +112,8 @@ class sortio_Class {
   int      nextDestRank_;		// cyclic counter for next xfer rank to send data to
   int      nscatter_tasks;		// number of scatter tasks per scatter communicator
   std::vector<MPI_Comm> Scatter_COMMS;  // List of communicators which contain only one IO task as rank leader
-
+  std::list  <MsgRecord> messageQueue_; // in-flight message queue
+  
   // Data sort tasks
 
   bool     is_sort_task;                // MPI rank is a sort task?
