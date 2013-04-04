@@ -9,7 +9,7 @@ sortio_Class::sortio_Class()
   initialized               = false;
   master                    = false;
   master_io                 = false;
-  master_xfer               = false;
+  isMasterXFER_             = false;
   master_sort               = false;
   overrideNumFiles_         = false;
   overrideNumIOHosts_       = false;
@@ -19,6 +19,8 @@ sortio_Class::sortio_Class()
   is_xfer_task              = false;
   is_sort_task              = false;
   isReadFinished_           = false;
+  isFirstRead_              = true;
+  records_per_file_         = 0;
   nio_tasks                 = 0;
   nxfer_tasks               = 0;
   nsort_tasks               = 0;
@@ -51,13 +53,14 @@ void sortio_Class::overrideNumIOHosts(int hosts)
 void sortio_Class::Summarize()
 {
 
+  MPI_Barrier(GLOB_COMM);
+
   // This routine is only meaningful on IO_tasks
 
-  if(!is_io_task)
-    return;
+  //  if(!is_io_task)
+  //    return;
 
   fflush(NULL);
-  MPI_Barrier(IO_COMM);
 
   //  setvbuf( stdout, NULL, _IONBF, 0 );
 
@@ -70,23 +73,23 @@ void sortio_Class::Summarize()
     gt.Summarize();
 
   fflush(NULL);
-  MPI_Barrier(IO_COMM);
+  MPI_Barrier(GLOB_COMM);
 
   // local performance
 
-  double time_local = gt.ElapsedSeconds("Raw Read");
-  double read_rate  = 1.0*num_records_read*REC_SIZE/(1000*1000*1000*time_local);
+  double time_local, read_rate;
 
-  assert(time_local > 0.0);
-  assert(num_records_read > 0);
+  if(is_io_task)
+    {
+      time_local = gt.ElapsedSeconds("Raw Read");
+      read_rate  = 1.0*num_records_read*REC_SIZE/(1000*1000*1000*time_local);
 
-#if 0
-  //printf("REC_SIZE = %i\n",REC_SIZE);
-  printf("[sortio][%4i]: Total (local) read speed = %7.3f (GB/sec)\n",io_rank,read_rate);
-#endif
+      assert(time_local > 0.0);
+      assert(num_records_read > 0);
+    }
 
   fflush(NULL);
-  MPI_Barrier(IO_COMM);
+  MPI_Barrier(GLOB_COMM);
 
   // global performance
 
@@ -96,11 +99,19 @@ void sortio_Class::Summarize()
   double time_avg;
   double aggregate_rate;
 
-  MPI_Allreduce(&num_records_read,&num_records_global,1,MPI_UNSIGNED_LONG,MPI_SUM,IO_COMM);
-  MPI_Allreduce(&time_local,&time_worst,    1,MPI_DOUBLE,MPI_MAX,IO_COMM);
-  MPI_Allreduce(&time_local,&time_best,     1,MPI_DOUBLE,MPI_MIN,IO_COMM);
-  MPI_Allreduce(&time_local,&time_avg,      1,MPI_DOUBLE,MPI_SUM,IO_COMM);
-  MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
+  if(is_io_task)
+    {
+      MPI_Allreduce(&num_records_read,&num_records_global,1,MPI_UNSIGNED_LONG,MPI_SUM,IO_COMM);
+      MPI_Allreduce(&time_local,&time_worst,    1,MPI_DOUBLE,MPI_MAX,IO_COMM);
+      MPI_Allreduce(&time_local,&time_best,     1,MPI_DOUBLE,MPI_MIN,IO_COMM);
+      MPI_Allreduce(&time_local,&time_avg,      1,MPI_DOUBLE,MPI_SUM,IO_COMM);
+      MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
+    }
+
+  double time_to_recv_data;
+
+  if(xfer_rank == nio_tasks)	// <-- defined as first recv task 
+    time_to_recv_data = gt.ElapsedSeconds("XFER/Recv");
 
   fflush(NULL);
 
@@ -118,14 +129,25 @@ void sortio_Class::Summarize()
 	printf("[sortio] --> Total amount of data read  = %7.3f (TBs)\n",total_gbs/1000.0);
 
       printf("\n");
-      printf("worst time from read task = %f\n",time_worst);
-      printf("best  time from read task = %f\n",time_best);
-      printf("avg.  time from read task = %f\n",time_avg);
       printf("[sortio] --> Global    read performance = %7.3f (GB/sec)\n",total_gbs/time_worst);
       printf("[sortio] --> Average   read performance = %7.3f (GB/sec)\n",total_gbs/time_avg);
       printf("[sortio] --> Aggregate read performance = %7.3f (GB/sec)\n",aggregate_rate);
+
+      printf("\n[sortio] --- Receiving XFER Performance----------- \n");
     } 
-  
+
+  MPI_Barrier(GLOB_COMM);
+  if(xfer_rank == nio_tasks)	// <-- defined as first recv task 
+    {
+      double total_recv_gbs = dataTransferred_/(1000*1000*1000);
+
+      if(total_recv_gbs < 1000)
+	printf("[sortio] --> Total data received        = %7.3f (GBs)\n",total_recv_gbs);
+      else
+	printf("[sortio] --> Total data received        = %7.3f (TBs)\n",total_recv_gbs/1000.0);
+      printf("[sortio] --> Transfer performance       = %7.3f (GB/sec)\n",total_recv_gbs/time_to_recv_data);
+    }
+  MPI_Barrier(GLOB_COMM);
 
   return;
 }
@@ -470,7 +492,10 @@ void sortio_Class::SplitComm()
     {
       assert( MPI_Comm_rank(XFER_COMM,&xfer_rank) == MPI_SUCCESS);
       if(xfer_rank == 0)
-	master_xfer = true;
+	{
+	  isMasterXFER_ = true;
+	  masterXFER_GlobalRank = num_local;
+	}
     }
   if(is_sort_task)
     {
@@ -560,5 +585,22 @@ void sortio_Class::SplitComm()
     }
   
   free(hostnames_ALL);  
+  return;
+}
+
+// --------------------------------------------------------------------
+// Reenable input buffer for use by reader tasks by adding to the
+// Empty queue 
+//
+// Thread-safety: all Empty/Full queue updates are locked
+// --------------------------------------------------------------------
+
+void sortio_Class::addBuffertoEmptyQueue(int bufNum)
+{
+#pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+  {
+    emptyQueue_.push_back(bufNum);
+    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
+  }
   return;
 }

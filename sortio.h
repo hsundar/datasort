@@ -3,6 +3,7 @@
 // I/O class to aid in a large, distributed sort
 //
 
+#include "mpi.h"
 #include <string>
 #include <map>
 #include <cassert>
@@ -13,7 +14,7 @@
 #include <algorithm>
 #include <queue>
 #include <list>
-#include "mpi.h"
+
 #include "grvy.h"
 
 #ifdef _OPENMP
@@ -62,6 +63,7 @@ class sortio_Class {
   void beginRecvTransferProcess();
   int  CycleDestRank();
   void checkForSendCompletion(bool waitFlag);
+  void addBuffertoEmptyQueue(int bufNum);
 
  private:
   bool master;			        // master task?
@@ -74,7 +76,7 @@ class sortio_Class {
   int  num_io_hosts;		        // total # of desired unique IO hosts
 
   unsigned long num_records_read;       // total # of records read locally
-  unsigned long records_per_file;       // # of records read locally per file
+  unsigned long records_per_file_;       // # of records read locally per file (assumed constant)
 
   std::string basename;		        // input file basename
   std::string indir;		        // input directory
@@ -90,6 +92,7 @@ class sortio_Class {
 
   bool     is_io_task;                  // MPI rank is an IO task?
   bool     master_io;			// master IO task?
+  bool     isFirstRead_;		// first file read?
   int      nio_tasks;		        // number of dedicated raw I/O tasks
   int      io_rank;		        // MPI rank of local I/O task
   MPI_Comm IO_COMM;		        // MPI communicator for raw I/O tasks
@@ -103,13 +106,15 @@ class sortio_Class {
   // Data transfer tasks
 
   bool     is_xfer_task;                // MPI rank is a data transfer task?
-  bool     master_xfer;			// master XFER task?
+  bool     isMasterXFER_;		// master XFER task?
   bool     isReadFinished_;		// flag for signaling raw read completion
   int      nxfer_tasks;		        // number of dedicated data transfer tasks
   int      xfer_rank;		        // MPI rank of local data transfer task
+  int      masterXFER_GlobalRank;	// global rank of master XFER process
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
   int      nextDestRank_;		// cyclic counter for next xfer rank to send data to
   int      nscatter_tasks;		// number of scatter tasks per scatter communicator
+  size_t   dataTransferred_;		// amount of data transferred to receiving tasks
   std::vector<MPI_Comm> Scatter_COMMS;  // List of communicators which contain only one IO task as rank leader
   std::list  <MsgRecord> messageQueue_; // in-flight message queue
   

@@ -6,7 +6,6 @@
 
 void sortio_Class::Init_Read()
 {
-
   assert(initialized);
 
   // This routine is only meaningful on IO_tasks
@@ -18,7 +17,6 @@ void sortio_Class::Init_Read()
 
   // Initialize read buffers - todo: think about memory pinning here
 
-  //  buffers.reserve(MAX_READ_BUFFERS);
   buffers.resize(MAX_READ_BUFFERS);
 
   for(int i=0;i<MAX_READ_BUFFERS;i++)
@@ -26,8 +24,7 @@ void sortio_Class::Init_Read()
       buffers[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
       assert(buffers[i] != NULL);
 
-      // Flag buffers as being eligible to receive data
-
+      // Flag buffer as being eligible to receive data
       emptyQueue_.push_back(i);
     }
 
@@ -60,8 +57,6 @@ void sortio_Class::Init_Read()
     }
   }
 
-  MPI_Barrier(XFER_COMM);
-
   return;
 }
 
@@ -79,6 +74,8 @@ void sortio_Class::ReadFiles()
   assert(initialized);
   assert(is_io_task);
 
+  unsigned long records_per_file;
+
   gt.BeginTimer("Raw Read");
   int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
   size_t read_size;
@@ -87,17 +84,8 @@ void sortio_Class::ReadFiles()
   filebase += "/";
   filebase += basename;
 
-#if 0
-  printf("%i: num_iters = %i\n",io_rank,num_iters);
-#endif
-
   for(int iter=0;iter<num_iters;iter++)
     {
-
-#if 0
-      if(master)
-	printf("[sortio][%3i]: starting read iteration %4i of %4i total\n",io_rank,iter,num_iters-1);
-#endif
 
       std::ostringstream s_id;
       int file_suffix = iter*nio_tasks + io_rank;
@@ -110,7 +98,6 @@ void sortio_Class::ReadFiles()
 
       if(random_read_offset)
 	{
-
 	  int min_index = iter*nio_tasks;
 	  int max_index = iter*nio_tasks + (nio_tasks-1);
 	  int offset;
@@ -181,13 +168,13 @@ void sortio_Class::ReadFiles()
       unsigned char *buffer;	
 
 #if 1
-      // Stall briefly if no empty queue buffers are avilable
+      // Stall briefly if no empty queue buffers are available
 
       if(emptyQueue_.size() == 0 )
 	for(int i=0;i<500;i++)
 	  {
 	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
-	    usleep(1000);
+	    usleep(100000);
 	    if(emptyQueue_.size() > 0)
 	      break;
 	  }
@@ -213,7 +200,6 @@ void sortio_Class::ReadFiles()
 
       while(read_size == REC_SIZE)
 	{
-
 	  // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
 	  read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
@@ -229,6 +215,15 @@ void sortio_Class::ReadFiles()
 	}
 
       fclose(fp);
+
+      if(isFirstRead_)
+	{
+	  records_per_file_ = records_per_file;
+	  isFirstRead_ = false;
+	}
+
+      // we assume for now, that all files are equal in size
+      assert(records_per_file == records_per_file_);
 
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {

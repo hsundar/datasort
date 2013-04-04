@@ -14,6 +14,9 @@ void sortio_Class::Transfer_Tasks_Work()
   //const int USLEEP_INTERVAL = 1000;
   //const int USLEEP_INTERVAL = 100;
   int numTransferedFiles = 0;
+  int tagXFER = 1000;
+
+  unsigned char *buffertoSend;
 
   std::vector<int> fullQueueCounts(nio_tasks,0);
 
@@ -26,11 +29,52 @@ void sortio_Class::Transfer_Tasks_Work()
   std::vector<int>::iterator itMax;
   int procMax;
   int maxCount;
+  int messageSize;
   int destRank = nio_tasks;
   bool waitFlag;
 
   buf_nums      = new int[MAX_READ_BUFFERS];
   nextDestRank_ = nio_tasks;
+
+  unsigned char *buffer;
+
+  buffer = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+
+  // before we begin main xfer loop, we wait for the first read to
+  // occur on master_io rank and distribute the file size (assumed
+  // constant for now)
+
+#if 1
+  unsigned long int initialRecordsPerFile;
+
+  if(master_io)
+    {
+      for(int iter=0;iter<20;iter++)
+	{
+	  if(isFirstRead_)
+	    usleep(100000);
+	  else
+	    break;
+	}
+
+      if(isFirstRead_)
+	MPI_Abort(MPI_COMM_WORLD,43);
+
+      initialRecordsPerFile = records_per_file_;
+    }
+#endif
+
+  //MPI_Barrier(XFER_COMM);
+  //initialRecordsPerFile = 100000;
+  /* # records for 100 MB file =   1000000 */
+  assert( MPI_Bcast(&initialRecordsPerFile,1,MPI_UNSIGNED_LONG,0,XFER_COMM) == MPI_SUCCESS );
+  //  MPI_Barrier(XFER_COMM);
+  messageSize = initialRecordsPerFile*REC_SIZE;
+
+  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1024*1024);
+
+  if(master_io)
+    grvy_printf(INFO,"[sortio][IO/XFER] Message size for XFERS = %i\n",messageSize);
 
   while (numTransferedFiles < num_files_total)
     {
@@ -85,7 +129,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		  {
 		    buf_nums[i] = fullQueue_.front();
 		    fullQueue_.pop_front();
-		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buff from fullQueue\n",io_rank,buf_nums[i]);
+		    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",io_rank,buf_nums[i]);
 		  }
 	      }
 
@@ -96,24 +140,52 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	      // step3: send buffers to XFER ranks asynchronously
 
-	      const int tagXFER = 1000;
+	      //	      const int tagXFER = 1000;
 
 	      for(int i=0;i<maxCount;i++)
 		{
-		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i\n",io_rank,nextDestRank_);
-		  MPI_Isend(&buffers[buf_nums[i]],100,MPI_UNSIGNED_CHAR,CycleDestRank(),
-			    tagXFER,XFER_COMM,&requestHandle);
+		  tagXFER++;
+		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
+			      io_rank,nextDestRank_,tagXFER);
+#if 1
+
+		  //		  MPI_Send(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+		  //			    tagXFER,XFER_COMM);
+
+		  //buffertoSend = buffers[buf_nums
+
+		  MPI_Send(&buffers[buf_nums[i]][0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+			   tagXFER,XFER_COMM);
+
+		  // re-enable this buffer for eligibility
+
+		  addBuffertoEmptyQueue(buf_nums[i]);
 		  
-		  // queue these messages as being in flight
+#else
+		  //		  MPI_Isend(&buffers[buf_nums[i]],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+		  //			    tagXFER,XFER_COMM,&requestHandle);
+
+		  MPI_Isend(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,CycleDestRank(),
+			    tagXFER,XFER_COMM,&requestHandle);
+
+		  // queue up these messages as being in flight
 
 		  MsgRecord message(buf_nums[i],requestHandle);
 		  messageQueue_.push_back(message);
+#endif
+
 		}
 	    } 
 	  else
 	    {
+	      // Keep other io_ranks who did send data on this
+	      // iteration in sync with the rank that did send
+
 	      for(int i=0;i<maxCount;i++)
-		CycleDestRank();
+		{
+		  CycleDestRank();
+		  tagXFER++;
+		}
 	    }
 
 	  // All IO ranks keep track of total number of files transferred
@@ -171,12 +243,14 @@ void sortio_Class::checkForSendCompletion(bool waitFlag)
 	  it = messageQueue_.erase(it++);
 	  
 	  // re-enable this buffer for eligibility
-	  
-          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
-	  {
-	    emptyQueue_.push_back(bufNum);
-	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
-	  }
+
+	  addBuffertoEmptyQueue(bufNum);
+
+//          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+//	  {
+//	    emptyQueue_.push_back(bufNum);
+//	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
+//	  }
 	}
       else if(waitFlag)
 	{
@@ -186,11 +260,13 @@ void sortio_Class::checkForSendCompletion(bool waitFlag)
 
 	  it = messageQueue_.erase(it++);
 
-          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
-	  {
-	    emptyQueue_.push_back(bufNum);
-	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
-	  }
+	  addBuffertoEmptyQueue(bufNum);
+
+//          #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
+//	  {
+//	    emptyQueue_.push_back(bufNum);
+//	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",io_rank,bufNum);
+//	  }
 	}
       else
 	++it;	// <-- message still active
