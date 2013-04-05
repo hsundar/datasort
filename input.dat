@@ -10,8 +10,8 @@
 num_io_hosts  = 2
 num_files = 3000
 
-#max_read_buffers     =80
-max_read_buffers     = 5
+max_read_buffers     = 100
+#max_read_buffers    = 5
 max_file_size_in_mbs = 100
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/

@@ -15,6 +15,8 @@
 #include <queue>
 #include <list>
 
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
 #include "grvy.h"
 
 #ifdef _OPENMP
@@ -57,6 +59,7 @@ class sortio_Class {
   void SplitComm();
   void Summarize();
   void Init_Read();
+  void manageSortProcess();
   void IO_Tasks_Work();
   void RecvDataFromIOTasks();
   void Transfer_Tasks_Work();
@@ -74,6 +77,7 @@ class sortio_Class {
   bool mpi_initialized_by_sortio;       // did we have to call MPI_Init()?
   int  num_files_total;		        // total # of input files to sort
   int  num_io_hosts;		        // total # of desired unique IO hosts
+  int  numSortHosts_;			// total # of detected sort hosts;
 
   unsigned long num_records_read;       // total # of records read locally
   unsigned long records_per_file_;       // # of records read locally per file (assumed constant)
@@ -113,7 +117,7 @@ class sortio_Class {
   int      masterXFER_GlobalRank;	// global rank of master XFER process
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
   int      nextDestRank_;		// cyclic counter for next xfer rank to send data to
-  int      nscatter_tasks;		// number of scatter tasks per scatter communicator
+  int      localSortRank_;		// MPI rank in GLOB_COMM for the first SORT task on same host
   size_t   dataTransferred_;		// amount of data transferred to receiving tasks
   std::vector<MPI_Comm> Scatter_COMMS;  // List of communicators which contain only one IO task as rank leader
   std::list  <MsgRecord> messageQueue_; // in-flight message queue
@@ -122,10 +126,12 @@ class sortio_Class {
 
   bool     is_sort_task;                // MPI rank is a sort task?
   bool     master_sort;			// master SORT task?
+  bool     isLocalSortMaster_;		// master sort task on this host? (used for IPC)
   int      nsort_tasks;		        // number of dedicated sort tasks
   int      sort_rank;		        // MPI rank of local sort task
+  int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
 
-  unsigned char rec_buf[REC_SIZE];
+  //  unsigned char rec_buf[REC_SIZE];
   
 };

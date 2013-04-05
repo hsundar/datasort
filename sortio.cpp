@@ -10,6 +10,7 @@ sortio_Class::sortio_Class()
   master                    = false;
   master_io                 = false;
   isMasterXFER_             = false;
+  isLocalSortMaster_        = false;
   master_sort               = false;
   overrideNumFiles_         = false;
   overrideNumIOHosts_       = false;
@@ -25,6 +26,8 @@ sortio_Class::sortio_Class()
   nxfer_tasks               = 0;
   nsort_tasks               = 0;
   num_records_read          = 0;
+  localSortRank_            = -1;
+  localXferRank_            = -1;
   basename                  = "part";
 
   setvbuf( stdout, NULL, _IONBF, 0 );
@@ -54,15 +57,7 @@ void sortio_Class::Summarize()
 {
 
   MPI_Barrier(GLOB_COMM);
-
-  // This routine is only meaningful on IO_tasks
-
-  //  if(!is_io_task)
-  //    return;
-
   fflush(NULL);
-
-  //  setvbuf( stdout, NULL, _IONBF, 0 );
 
   gt.Finalize();
 
@@ -110,8 +105,11 @@ void sortio_Class::Summarize()
 
   double time_to_recv_data;
 
-  if(xfer_rank == nio_tasks)	// <-- defined as first recv task 
-    time_to_recv_data = gt.ElapsedSeconds("XFER/Recv");
+  if(is_xfer_task && (xfer_rank == nio_tasks))	// <-- defined as first recv task 
+    {
+      //printf("querying XFER/Recv on global rank %i\n",num_local);
+      time_to_recv_data = gt.ElapsedSeconds("XFER/Recv");
+    }
 
   fflush(NULL);
 
@@ -137,9 +135,9 @@ void sortio_Class::Summarize()
     } 
 
   MPI_Barrier(GLOB_COMM);
-  if(xfer_rank == nio_tasks)	// <-- defined as first recv task 
+  if(is_xfer_task && (xfer_rank == nio_tasks))	// <-- defined as first recv task 
     {
-      double total_recv_gbs = dataTransferred_/(1000*1000*1000);
+      double total_recv_gbs = 1.0*dataTransferred_/(1000*1000*1000);
 
       if(total_recv_gbs < 1000)
 	printf("[sortio] --> Total data received        = %7.3f (GBs)\n",total_recv_gbs);
@@ -281,13 +279,9 @@ void sortio_Class::SplitComm()
   std::vector<int>      io_comm_ranks; 
   std::vector<int>    xfer_comm_ranks;
   std::vector<int>    sort_comm_ranks;
+  std::vector<int>    first_sort_rank;
 
   std::map<std::string,std::vector<int> > uniq_hosts; // hostname -> global MPI rank mapping
-
-  std::vector<int>    tmp_scatter;
-  std::vector< std::vector<int> > scatter_comm_ranks(num_io_hosts); // dedicated Scatter comms from each IO rank
-
-  //Scatter_COMMS.reserve(num_io_hosts);
 
   if(master)
     {
@@ -324,24 +318,27 @@ void sortio_Class::SplitComm()
 	    {
 	      io_comm_ranks.push_back  ((*it).second[0]);
 	      xfer_comm_ranks.push_back((*it).second[0]);
-	      scatter_comm_ranks[count].push_back((*it).second[0]);
 	    }
 	  else
 	    {
 	      xfer_comm_ranks.push_back((*it).second[0]);
-	      tmp_scatter.push_back((*it).second[0]);
 
 	      for(int proc=1;proc<(*it).second.size();proc++)
-		sort_comm_ranks.push_back((*it).second[proc]);
+		{
+		  if(proc == 1)
+		    first_sort_rank.push_back((*it).second[proc]);
+		  sort_comm_ranks.push_back((*it).second[proc]);
+		}
 	    }
 	    
 	  grvy_printf(INFO,"[sortio]    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
 	  count++;
 	}
 
-      nio_tasks   = io_comm_ranks.size();
-      nxfer_tasks = xfer_comm_ranks.size();
-      nsort_tasks = sort_comm_ranks.size();
+      nio_tasks     = io_comm_ranks.size();
+      nxfer_tasks   = xfer_comm_ranks.size();
+      nsort_tasks   = sort_comm_ranks.size();
+      numSortHosts_ = first_sort_rank.size();
 
       // quick sanity checks
 
@@ -351,29 +348,7 @@ void sortio_Class::SplitComm()
       assert(nsort_tasks > 0);
       assert(nio_tasks == num_io_hosts);
       assert(nxfer_tasks + nsort_tasks <= num_tasks);
-      assert(tmp_scatter.size() == (nxfer_tasks - nio_tasks) );
-
-      // Complete build out of scatter_comm ranks - the receiving XFER
-      // ranks were cached above in tmp_scatter; now, just need to append them
-      // to each scatter_comm_ranks entry;
-
-      grvy_printf(INFO,"[sortio]\n");
-      grvy_printf(INFO,"[sortio] Defining %i data transfer Scatter groups...\n",nio_tasks);
-      
-      for(int i=0;i<nio_tasks;i++)
-	{
-	  assert(scatter_comm_ranks[i].size() == 1);
-	  scatter_comm_ranks[i].insert(scatter_comm_ranks[i].end(),tmp_scatter.begin(),tmp_scatter.end());
-
-	  assert(scatter_comm_ranks[i].size() == (nxfer_tasks - nio_tasks + 1) );
-	  printf("[sortio] --> Set %3i global rank as leader (%zi ranks total)\n",
-		 scatter_comm_ranks[i][0],scatter_comm_ranks[i].size());
-	  if(i == 0)
-	    nscatter_tasks = scatter_comm_ranks[i].size();
-	  else
-	    assert (scatter_comm_ranks[i].size() == nscatter_tasks);
-	}
-
+      assert(numSortHosts_ == (uniq_hosts.size()-num_io_hosts));
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -394,50 +369,25 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(&nio_tasks,     1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&nxfer_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&nsort_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&nscatter_tasks,1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numSortHosts_, 1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
 
   if(!master)
     {
       io_comm_ranks.reserve  (nio_tasks);
       xfer_comm_ranks.reserve(nxfer_tasks);
       sort_comm_ranks.reserve(nsort_tasks);
-
-      for(int io_host=0;io_host<nio_tasks;io_host++)
-	scatter_comm_ranks[io_host].reserve(nscatter_tasks);
+      first_sort_rank.reserve(numSortHosts_);
     }
 
-  assert( MPI_Bcast(  io_comm_ranks.data(),  nio_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-  assert( MPI_Bcast(xfer_comm_ranks.data(),nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-  assert( MPI_Bcast(sort_comm_ranks.data(),nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-
-  // Distributing scatter_comm_ranks takes a litle more care to pass
-  // around as it is a vector of vectors
-
-  for(int io_host=0;io_host<nio_tasks;io_host++)
-    {
-      if(master)
-	{
-	  int *ranks_to_send = (scatter_comm_ranks[io_host]).data();
-	  assert( MPI_Bcast( ranks_to_send,nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);	  
-	}
-      else
-	{
-	  int *ranks_to_recv = new int [nscatter_tasks];
-	  assert( MPI_Bcast( ranks_to_recv,nscatter_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
-
-	  for(int iscat=0;iscat<nscatter_tasks;iscat++)
-	    scatter_comm_ranks[io_host].push_back(ranks_to_recv[iscat]);
-
-	  assert( scatter_comm_ranks[io_host].size() == nscatter_tasks);
-	  delete [] ranks_to_recv;
-	}
-    }
+  assert( MPI_Bcast(  io_comm_ranks.data(),    nio_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(xfer_comm_ranks.data()  ,nxfer_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(sort_comm_ranks.data(),  nsort_tasks,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
+  assert( MPI_Bcast(first_sort_rank.data(),numSortHosts_,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS);
 
   MPI_Group group_global;
   MPI_Group group_io;
   MPI_Group group_xfer;
   MPI_Group group_sort;
-  MPI_Group group_scatter;
 
   assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
 
@@ -450,19 +400,6 @@ void sortio_Class::SplitComm()
   assert( MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_sort, &SORT_COMM) == MPI_SUCCESS);
-
-  for(int io_host=0;io_host<nio_tasks;io_host++)
-    {
-      assert( MPI_Group_incl (group_global, nscatter_tasks,
-			      (scatter_comm_ranks[io_host]).data(), &group_scatter) == MPI_SUCCESS);
-
-      MPI_Comm tmp_COMM;
-
-      assert( MPI_Comm_create(GLOB_COMM, group_scatter, &tmp_COMM ) == MPI_SUCCESS);
-      Scatter_COMMS.push_back(tmp_COMM);
-    }   
-
-  assert(Scatter_COMMS.size() == nio_tasks);
 
   // is the local rank part of the new groups?
 
@@ -478,7 +415,9 @@ void sortio_Class::SplitComm()
 
   assert( MPI_Group_rank( group_sort, &rank_tmp) == MPI_SUCCESS);
   if(rank_tmp != MPI_UNDEFINED)
-    is_sort_task = true;
+      is_sort_task = true;
+
+  MPI_Barrier(GLOB_COMM);
 
   //  cache the new communicator ranks...
 
@@ -496,21 +435,43 @@ void sortio_Class::SplitComm()
 	  isMasterXFER_ = true;
 	  masterXFER_GlobalRank = num_local;
 	}
+
+      // On receiving XFER tasks, identify global rank of first sort
+      // task that also resides on this host (for IPC communication)
+
+      //grvy_printf(INFO,"[sortio]\n");
+
+      if(xfer_rank >= num_io_hosts)
+	{
+	  int index = xfer_rank-num_io_hosts;   
+	  localSortRank_ = first_sort_rank[index];
+	  grvy_printf(DEBUG,"[sortio] --> IPC setup: XFER rank %i -> global master sort rank %i\n",
+		      xfer_rank,localSortRank_);
+	}
+      
     }
   if(is_sort_task)
     {
       assert( MPI_Comm_rank(SORT_COMM,&sort_rank) == MPI_SUCCESS);
       if(sort_rank == 0)
 	master_sort = true;
+
+      // For the master Sort task on each host, identify global rank
+      // of XFER task that also resides on this host (for IPC
+      // communication)
+
+      for(int i=0;i<nxfer_tasks;i++)
+	{
+	  if(num_local == first_sort_rank[i])
+	    {
+	      isLocalSortMaster_ = true;
+	      localXferRank_     = xfer_comm_ranks[i+num_io_hosts];
+	      grvy_printf(DEBUG,"[sortio] --> IPC setup: SORT rank %i -> global xfer rank %i\n",sort_rank,localXferRank_);
+	    }
+	}
     }
 
   MPI_Barrier(GLOB_COMM);
-
-  // verify current runtime restriction that we can evenly divide a single file into nxfer_tasks
-
-  // big-time hack for now....fixme
-
-  //assert( (1000000 % nscatter_tasks) == 0);
 
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)

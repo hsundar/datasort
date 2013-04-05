@@ -68,7 +68,7 @@ void sortio_Class::Transfer_Tasks_Work()
   if(master_io)
     grvy_printf(INFO,"[sortio][IO/XFER] Message size for XFERS = %i\n",messageSize);
 
-  // Begin main xfer loop
+  // Begin main xfer loop -----------------------------------------------
 
   while (numTransferedFiles < num_files_total)
     {
@@ -106,16 +106,15 @@ void sortio_Class::Transfer_Tasks_Work()
 	  if(io_rank == procMax)
 	    {
 	      // step 1: verify that we have no remaining outstanding messages
-	      // on this processor (wait if we do)
+	      // on this processor (and wait if we do)
+
+	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,messageQueue_.size());
 
 	      checkForSendCompletion(waitFlag=true);
 
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,messageQueue_.size());
 	      assert(messageQueue_.size() == 0);
 
 	      // step 2: lock the data transfer buffers on this processor
-
-	      //int buf_num;
 
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
@@ -134,12 +133,10 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	      // step3: send buffers to XFER ranks asynchronously
 
-	      //	      const int tagXFER = 1000;
-
 	      for(int i=0;i<maxCount;i++)
 		{
 		  tagXFER++;
-		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
+		  grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
 			      io_rank,nextDestRank_,tagXFER);
 #if 0
 		  // blocking send for DEBUG

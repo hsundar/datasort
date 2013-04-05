@@ -25,5 +25,6 @@ AX_PATH_GRVY([0.30],[yes])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h stdlib.h sys/ioctl.h unistd.h])
+BOOST_REQUIRE([1.46])
 
 AC_OUTPUT(Makefile)

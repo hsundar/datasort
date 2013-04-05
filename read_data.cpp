@@ -171,7 +171,7 @@ void sortio_Class::ReadFiles()
       // Stall briefly if no empty queue buffers are available
 
       if(emptyQueue_.size() == 0 )
-	for(int i=0;i<500;i++)
+	for(int i=0;i<5000;i++)
 	  {
 	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
 	    usleep(100000);
