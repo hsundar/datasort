@@ -27,10 +27,19 @@ void sortio_Class::beginRecvTransferProcess()
   unsigned long int recordsPerFile;
   int messageSize;
 
-  // init shared-memory segments for transfer to first SORT_COMM rank
-  // on this same host. Note that we create the segments on the
-  // XFER_COMM side and then send a handshake to the corresponding
-  // SORT_COMM rank on the same host.
+  // before we begin main xfer loop, we receive the # of records per
+  // file which is assumed constant
+
+  assert( MPI_Bcast(&recordsPerFile,1,MPI_UNSIGNED_LONG,0,XFER_COMM) == MPI_SUCCESS );
+  messageSize = recordsPerFile*REC_SIZE;
+
+  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1024*1024);
+
+  // also before beginning main xfer loop, we init shared-memory
+  // segments for transfer to first SORT_COMM rank on this same
+  // host. The segments are created on the XFER_COMM side first and
+  // then we send a handshake to the corresponding SORT_COMM rank on the
+  // same host.
 
   int *syncFlags;		// read/write notification flags
   unsigned char *buffer;	// local buffer space to receive from IO ranks
@@ -53,23 +62,15 @@ void sortio_Class::beginRecvTransferProcess()
   buffer    = static_cast<unsigned char *>(region2.get_address());
 
   syncFlags[0] = 0;		// master flag: 0=empty,1=full
-  syncFlags[1] = 0;		//  child flag: 0=not-xferred,1=xferred
+  syncFlags[1] = messageSize;   //  extra data
 
   // initiate handshake
 
-  const int handshake = 1;
+  int handshake = 1;
+  grvy_printf(DEBUG,"[sortio][XFER/IPC][%.4i] posting IPC handshake (%i to %i)...\n",
+	      xfer_rank,num_local,localSortRank_);
+
   MPI_Send(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM);
-  
-  //  unsigned char *buffer;	// local buffer space for received data
-  //  buffer = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
-
-  // before we begin main xfer loop, we receive the # of records per
-  // file which is assumed constant
-
-  assert( MPI_Bcast(&recordsPerFile,1,MPI_UNSIGNED_LONG,0,XFER_COMM) == MPI_SUCCESS );
-  messageSize = recordsPerFile*REC_SIZE;
-
-  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1024*1024);
 
   // Main Recv loop; each rank takes a turn receiving file
   // contents and distributing to local SORT_COMM processes for
@@ -88,22 +89,24 @@ void sortio_Class::beginRecvTransferProcess()
       if(xfer_rank == recvRank)
 	{
 
-#if 0
-	  // stall briefly if last data transfer is incomplete on this host
+	  // stall briefly if last data transfer to local SORT rank is
+	  // incomplete on this host
+
+	  const int usleepInterval = 10000;
 
 	  if(syncFlags[0] != 0)
-	    for(int i=0;i<5000;i++)
+	    for(int i=1;i<=10000;i++)
 	      {
-		grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalling....(iter=%i)\n",
-			    xfer_rank,ifile);
-		usleep(100000);
+		usleep(usleepInterval);
 		if(syncFlags[0] == 0)
-		  break;
+		  {
+		    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalled for"
+				" %9.4e secs (iter=%i)\n",xfer_rank,1.0e-6*i*usleepInterval,ifile);
+		    break;
+		  }
 	      }
 
 	  assert(syncFlags[0] == 0);
-
-#endif
 
 	  MPI_Status status;
 	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",
@@ -125,6 +128,14 @@ void sortio_Class::beginRecvTransferProcess()
       iter++;
       dataTransferred_ += messageSize;
     }
+
+  // receive final handshake from sort task ( to guarantee SHM buffers stay in scope)
+
+  handshake = -1;
+  MPI_Status status;
+  //MPI_Send(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM);
+  MPI_Recv(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM,&status);
+  assert(handshake == 2);
 
   gt.EndTimer("XFER/Recv");
 

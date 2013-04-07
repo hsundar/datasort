@@ -1,18 +1,15 @@
-1;2c#  -*-getpot-*-
+# -*-sh-*-
+# -*-getpot-*-
 
 
 [sortio]
 
-#num_io_hosts = 348
-#num_io_hosts = 256
-#num_io_hosts = 16
-#num_io_hosts = 16
 num_io_hosts  = 2
 num_files = 3000
 
-max_read_buffers     = 100
-#max_read_buffers    = 5
-max_file_size_in_mbs = 100
+max_read_buffers       = 100
+max_file_size_in_mbs   = 100
+max_messages_watermark =  20         # max messages in flight per xfer task
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/140_gib

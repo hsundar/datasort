@@ -65,8 +65,8 @@ class sortio_Class {
   void Transfer_Tasks_Work();
   void beginRecvTransferProcess();
   int  CycleDestRank();
-  void checkForSendCompletion(bool waitFlag);
-  void addBuffertoEmptyQueue(int bufNum);
+  void checkForSendCompletion(bool waitFlag, int waterMark, int iter);
+  void addBuffertoEmptyQueue (int bufNum);
 
  private:
   bool master;			        // master task?
@@ -103,6 +103,7 @@ class sortio_Class {
 				        
   int      MAX_READ_BUFFERS;	        // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;        // maximum individual file size to be read in
+  int      MAX_MESSAGES_WATERMARK;      // max num of allowed messages in flight per host
   std::vector<unsigned char *> buffers; // read buffers
   std::list <size_t> emptyQueue_;       // queue to flag empty read buffers
   std::list <size_t> fullQueue_;        // queue to flag full read buffers
@@ -118,6 +119,7 @@ class sortio_Class {
   MPI_Comm XFER_COMM;		        // MPI communicator for data transfer tasks
   int      nextDestRank_;		// cyclic counter for next xfer rank to send data to
   int      localSortRank_;		// MPI rank in GLOB_COMM for the first SORT task on same host
+
   size_t   dataTransferred_;		// amount of data transferred to receiving tasks
   std::vector<MPI_Comm> Scatter_COMMS;  // List of communicators which contain only one IO task as rank leader
   std::list  <MsgRecord> messageQueue_; // in-flight message queue

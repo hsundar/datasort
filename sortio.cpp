@@ -190,21 +190,25 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
       // Register defaults
 
-      iparse.Register_Var("sortio/max_read_buffers",     10);
-      iparse.Register_Var("sortio/max_file_size_in_mbs",100);
+      iparse.Register_Var("sortio/max_read_buffers",      10 );
+      iparse.Register_Var("sortio/max_file_size_in_mbs",  100);
+      iparse.Register_Var("sortio/max_messages_watermark",10 );
 
       if(!overrideNumIOHosts_)
-	assert( iparse.Read_Var("sortio/num_io_hosts",        &num_io_hosts)         != 0 );
-      assert( iparse.Read_Var("sortio/input_dir",           &indir)                != 0 );
-      assert( iparse.Read_Var("sortio/max_read_buffers",    &MAX_READ_BUFFERS)     != 0 );
-      assert( iparse.Read_Var("sortio/max_file_size_in_mbs",&MAX_FILE_SIZE_IN_MBS) != 0 );
+	assert( iparse.Read_Var("sortio/num_io_hosts",        &num_io_hosts)           != 0 );
+
+      assert( iparse.Read_Var("sortio/input_dir",             &indir)                  != 0 );
+      assert( iparse.Read_Var("sortio/max_read_buffers",      &MAX_READ_BUFFERS)       != 0 );
+      assert( iparse.Read_Var("sortio/max_file_size_in_mbs"  ,&MAX_FILE_SIZE_IN_MBS)   != 0 );
+      assert( iparse.Read_Var("sortio/max_messages_watermark",&MAX_MESSAGES_WATERMARK) != 0 );
 
       // Simple sanity checks
 
       assert( num_io_hosts         > 0);
       assert( MAX_READ_BUFFERS     > 0);
       assert( MAX_FILE_SIZE_IN_MBS > 0);
-      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 16*1024 ); // Assume less than 16 GB/host
+      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
+      assert( MAX_MESSAGES_WATERMARK < 100);
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
@@ -221,11 +225,12 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   //  random_read_offset  = true;
 
-  assert( MPI_Bcast(&num_files_total,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&num_io_hosts,        1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&MAX_READ_BUFFERS,    1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&tmp_string_size,     1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&num_files_total,       1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&num_io_hosts,          1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&MAX_READ_BUFFERS,      1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,  1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&tmp_string_size,       1,MPI_INTEGER,0,COMM) == MPI_SUCCESS );
   
   tmp_string = (char *)calloc(tmp_string_size,sizeof(char));
   strcpy(tmp_string,indir.c_str());
@@ -350,6 +355,13 @@ void sortio_Class::SplitComm()
       assert(nxfer_tasks + nsort_tasks <= num_tasks);
       assert(numSortHosts_ == (uniq_hosts.size()-num_io_hosts));
 
+      // limit max messages in flight for small numbers of sort hosts
+
+#if 0
+      if(MAX_MESSAGES_WATERMARK > numSortHosts_)
+	MAX_MESSAGES_WATERMARK = numSortHosts_;
+#endif
+
       // Create desired MPI sub communicators based on runtime settings
 
       grvy_printf(INFO,"[sortio]\n");
@@ -460,13 +472,16 @@ void sortio_Class::SplitComm()
       // of XFER task that also resides on this host (for IPC
       // communication)
 
-      for(int i=0;i<nxfer_tasks;i++)
+      assert( (num_io_hosts + numSortHosts_) <= nxfer_tasks);
+
+      for(int i=0;i<numSortHosts_;i++)
 	{
 	  if(num_local == first_sort_rank[i])
 	    {
 	      isLocalSortMaster_ = true;
 	      localXferRank_     = xfer_comm_ranks[i+num_io_hosts];
-	      grvy_printf(DEBUG,"[sortio] --> IPC setup: SORT rank %i -> global xfer rank %i\n",sort_rank,localXferRank_);
+	      grvy_printf(DEBUG,"[sortio] --> IPC setup: SORT rank %i -> global xfer rank %i\n",
+			  sort_rank,localXferRank_);
 	    }
 	}
     }
