@@ -19,6 +19,8 @@ int main(int argc, char *argv[], char *env[])
   sort_IO.Init_Read();  
   sort_IO.beginRecvTransferProcess();
   sort_IO.manageSortProcess();
+  MPI_Barrier(MPI_COMM_WORLD);
+  fflush(NULL);
   sort_IO.Summarize();
 
   return 0;

@@ -92,7 +92,7 @@ void sortio_Class::beginRecvTransferProcess()
 	  // stall briefly if last data transfer to local SORT rank is
 	  // incomplete on this host
 
-	  const int usleepInterval = 10000;
+	  const int usleepInterval = 1000;
 
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=10000;i++)
@@ -109,12 +109,12 @@ void sortio_Class::beginRecvTransferProcess()
 	  assert(syncFlags[0] == 0);
 
 	  MPI_Status status;
-	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",
+	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",
 		      xfer_rank,iter,tagXFER);
 
 	  MPI_Recv(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status);
 
-	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xfer_rank,iter);
+	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xfer_rank,iter);
 
 	  // flag buffer as being eligible for transfer via IPC
 
@@ -133,7 +133,6 @@ void sortio_Class::beginRecvTransferProcess()
 
   handshake = -1;
   MPI_Status status;
-  //MPI_Send(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM);
   MPI_Recv(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM,&status);
   assert(handshake == 2);
 

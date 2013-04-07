@@ -221,6 +221,7 @@ void sortio_Class::Transfer_Tasks_Work()
     } //  end xfer of all files
 
   grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",io_rank);
+  fflush(NULL);
 
   delete [] buf_nums;
 
