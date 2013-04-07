@@ -117,9 +117,11 @@ void sortio_Class::Transfer_Tasks_Work()
       assert( MPI_Bcast(&maxCount,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
       assert( MPI_Bcast(&procMax, 1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
 
+#if 0
       if(procMax == procMaxLast)
 	if(master_io)
 	  grvy_printf(INFO,"[sortio][IO/XFER]: Repeat send from rank %i detected (iter = %i)\n",procMax,count);
+#endif
 
       procMaxLast = procMax;
 
