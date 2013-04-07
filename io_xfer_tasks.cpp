@@ -27,6 +27,7 @@ void sortio_Class::Transfer_Tasks_Work()
   MPI_Request requestHandle;
   std::vector<int>::iterator itMax;
   int procMax;
+  int procMaxLast = -1;
   int maxCount;
   int messageSize;
   int destRank = nio_tasks;
@@ -102,6 +103,8 @@ void sortio_Class::Transfer_Tasks_Work()
 
       if(master_io)
 	{
+	  // find the processor which has the most data
+
 	  itMax   = std::max_element(fullQueueCounts.begin(), fullQueueCounts.end());;
 	  procMax = std::distance   (fullQueueCounts.begin(), itMax);
 
@@ -113,6 +116,12 @@ void sortio_Class::Transfer_Tasks_Work()
 
       assert( MPI_Bcast(&maxCount,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
       assert( MPI_Bcast(&procMax, 1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
+
+      if(procMax == procMaxLast)
+	if(master_io)
+	  grvy_printf(INFO,"[sortio][IO/XFER]: Repeat send from rank %i detected (iter = %i)\n",procMax,count);
+
+      procMaxLast = procMax;
 
       count++;
 

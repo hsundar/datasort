@@ -130,6 +130,7 @@ class sortio_Class {
   bool     master_sort;			// master SORT task?
   bool     isLocalSortMaster_;		// master sort task on this host? (used for IPC)
   int      nsort_tasks;		        // number of dedicated sort tasks
+  int      numSortTasksPerHost_;	// numer of sort tasks per host
   int      sort_rank;		        // MPI rank of local sort task
   int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks

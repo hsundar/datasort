@@ -77,8 +77,6 @@ void sortio_Class::beginRecvTransferProcess()
   // subsequent sort; recv here is blocking but can match any source,
   // the corresponding send is non-blocking
 
-  //  printf("initialized XFER/Recv on global rank %i\n",num_local);
-
   gt.BeginTimer("XFER/Recv");
   dataTransferred_ = 0;
 

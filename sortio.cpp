@@ -345,7 +345,7 @@ void sortio_Class::SplitComm()
       nsort_tasks   = sort_comm_ranks.size();
       numSortHosts_ = first_sort_rank.size();
 
-      // quick sanity checks
+      // quick sanity checks and assumptions
 
       assert(nio_tasks   > 0);
       assert(nxfer_tasks > 0);
@@ -355,12 +355,13 @@ void sortio_Class::SplitComm()
       assert(nxfer_tasks + nsort_tasks <= num_tasks);
       assert(numSortHosts_ == (uniq_hosts.size()-num_io_hosts));
 
-      // limit max messages in flight for small numbers of sort hosts
+      // we assume all hosts have some number of MPI tasks specified
 
-#if 0
-      if(MAX_MESSAGES_WATERMARK > numSortHosts_)
-	MAX_MESSAGES_WATERMARK = numSortHosts_;
-#endif
+      int numTasksPerHost = (*uniq_hosts.begin()).second.size();
+      for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
+	assert( (*it).second.size() == numTasksPerHost);
+
+      numSortTasksPerHost_ = numTasksPerHost - 1; // 1 task belongs to XFER_COMM
 
       // Create desired MPI sub communicators based on runtime settings
 
@@ -378,10 +379,11 @@ void sortio_Class::SplitComm()
 
   // Build up new MPI task groups
 
-  assert( MPI_Bcast(&nio_tasks,     1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&nxfer_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&nsort_tasks,   1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&numSortHosts_, 1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nio_tasks,            1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nxfer_tasks,          1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&nsort_tasks,          1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numSortHosts_,        1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numSortTasksPerHost_, 1,MPI_INTEGER,0,GLOB_COMM) == MPI_SUCCESS );
 
   if(!master)
     {
