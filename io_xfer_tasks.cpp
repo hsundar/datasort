@@ -110,8 +110,9 @@ void sortio_Class::Transfer_Tasks_Work()
 
 	  maxCount = *itMax;
 
-	  grvy_printf(INFO,"[sortio][IO/XFER] Max full queue elements = %2i (at proc %.4i) -> iter = %i\n",
-		      maxCount,procMax,count);
+	  if(maxCount > 0)
+	    grvy_printf(INFO,"[sortio][IO/XFER] Max full queue elements = %2i (at proc %.4i) -> iter = %i\n",
+			maxCount,procMax,count);
 	}
 
       assert( MPI_Bcast(&maxCount,1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS );
