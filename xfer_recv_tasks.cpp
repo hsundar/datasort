@@ -97,7 +97,7 @@ void sortio_Class::beginRecvTransferProcess()
 
 #if 1
 	  if(syncFlags[0] != 0)
-	    for(int i=1;i<=10000;i++)
+	    for(int i=1;i<=100000;i++)
 	      {
 		usleep(usleepInterval);
 		if(syncFlags[0] == 0)
