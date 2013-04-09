@@ -98,8 +98,10 @@ void sortio_Class::ReadFiles()
 
       if(random_read_offset)
 	{
+#if 0
 	  int min_index = iter*nio_tasks;
 	  int max_index = iter*nio_tasks + (nio_tasks-1);
+#endif
 	  int offset;
 
 	  if(master)
