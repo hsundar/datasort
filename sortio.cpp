@@ -328,7 +328,7 @@ void sortio_Class::SplitComm()
 	    {
 	      xfer_comm_ranks.push_back((*it).second[0]);
 
-	      for(int proc=1;proc<(*it).second.size();proc++)
+	      for(size_t proc=1;proc<(*it).second.size();proc++)
 		{
 		  if(proc == 1)
 		    first_sort_rank.push_back((*it).second[proc]);
@@ -353,13 +353,13 @@ void sortio_Class::SplitComm()
       assert(nsort_tasks > 0);
       assert(nio_tasks == num_io_hosts);
       assert(nxfer_tasks + nsort_tasks <= num_tasks);
-      assert(numSortHosts_ == (uniq_hosts.size()-num_io_hosts));
+      assert(numSortHosts_ == ( (int)uniq_hosts.size() - num_io_hosts));
 
       // we assume all hosts have some number of MPI tasks specified
 
       int numTasksPerHost = (*uniq_hosts.begin()).second.size();
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
-	assert( (*it).second.size() == numTasksPerHost);
+	assert( (int)(*it).second.size() == numTasksPerHost);
 
       numSortTasksPerHost_ = numTasksPerHost - 1; // 1 task belongs to XFER_COMM
 

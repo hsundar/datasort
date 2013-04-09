@@ -142,7 +142,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      checkForSendCompletion(waitFlag=true,MAX_MESSAGES_WATERMARK,iter=count);
 	      
-	      assert(messageQueue_.size() <= MAX_MESSAGES_WATERMARK);
+	      assert( (int)messageQueue_.size() <= MAX_MESSAGES_WATERMARK);
 	      
 	      // step 2: lock the oldest data transfer buffer on this processor
 	      
@@ -209,7 +209,7 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
   // 
   // note that waterMark has no impact if !waitFlag
 
-  if(messageQueue_.size() == 0 || messageQueue_.size() <= waterMark )
+  if(messageQueue_.size() == 0 || ( (int)messageQueue_.size() <= waterMark) )
     return;
 
   std::list<MsgRecord>::iterator it = messageQueue_.begin();
