@@ -10,32 +10,24 @@ void sortio_Class::Transfer_Tasks_Work()
 {
   assert(initialized);
 
-  const int USLEEP_INTERVAL = 10000;
-  int numTransferredFiles = 0;
-  int tagXFER = 1000;
+  const int USLEEP_INTERVAL = 10000; // sleep interval if no data available to send
+  int tagXFER               = 1000; // initial MPI message tag
+  int numTransferredFiles   = 0;
+  int count                 = 0;
+
+  bool waitFlag;	      
   int tagLocal;
+  int iter; 
+  int bufNum;
+  int messageSize;
+  int destRank;
+  MPI_Request requestHandle;
 
   std::vector<int> fullQueueCounts(nio_tasks,0);
-  std::vector<int> destRanks(nio_tasks,-1);
-  std::vector<int> messageTags(nio_tasks,0);
+  std::vector<int> destRanks      (nio_tasks,-1);
+  std::vector<int> messageTags    (nio_tasks,0);
 
-  // Start main data transfer loop; we continue until all files have
-  // been read from IO_COMM and are transferred to SORT_COMM
-
-  int count = 0;
-  int iter;
-  int buf_num;
-  MPI_Request requestHandle;
-  std::vector<int>::iterator itMax;
-  int procMax;
-  int procMaxLast = -1;
-  int maxCount;
-  int messageSize;
-  int destRank = nio_tasks;
-  bool waitFlag;
-  int destRankTop = nio_tasks;
-
-  nextDestRank_ = nio_tasks;
+  nextDestRank_ = nio_tasks;	  // initialize first destination rank
 
   // before we begin main xfer loop, we wait for the first read to
   // occur on master_io rank and distribute the file size (assumed
@@ -70,11 +62,10 @@ void sortio_Class::Transfer_Tasks_Work()
   if(master_io)
     grvy_printf(INFO,"[sortio][IO/XFER] Message size for XFERS = %i\n",messageSize);
 
-  // Begin main xfer loop -----------------------------------------------
+  // Begin main data xfer loop -----------------------------------------------
 
   while (true)
     {
-
       // Transfer completed? We are done when we have received all the files *and* there
       // are no more outstanding messages active on any XFER sending processes
 
@@ -119,7 +110,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      }
 	}
 
-      // distribute from master_io
+      // distribute data from master_io on next set of destination ranks, message tags, etc
 
       assert( MPI_Bcast(&numBuffersToTransfer,1,MPI_INT,0,IO_COMM) == MPI_SUCCESS );
 
@@ -133,7 +124,6 @@ void sortio_Class::Transfer_Tasks_Work()
 	grvy_printf(INFO,"[sortio][IO/XFER] Number of hosts with data to send = %3i -> iter = %i\n",
 		    numBuffersToTransfer,count);
 
-      count++;
 
       // Send one buffer's worth of data from each IO task that has it
       // available locally; if no processors are ready yet, iterate
@@ -143,10 +133,10 @@ void sortio_Class::Transfer_Tasks_Work()
 	{
 	  if(localCount > 0) 
 	    {
-	      // step 1: let's check that we do not have an
-	      // overwhelming number of messages in flight from this
-	      // host; if we are over a runtime-specified watermark,
-	      // let's stall and flush the local message queue;
+	      // step 1: check that we do not have an overwhelming
+	      // number of messages in flight from this host; if we
+	      // are over a runtime-specified watermark, let's stall
+	      // and flush the local message queue;
 	      
 	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",io_rank,messageQueue_.size());
 	      
@@ -158,25 +148,24 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
-		buf_num = fullQueue_.front();
+		bufNum = fullQueue_.front();
 		fullQueue_.pop_front();
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",io_rank,buf_num);
+		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",io_rank,bufNum);
 	      }
 
-	      assert(buffers[buf_num] != NULL);
+	      assert(buffers[bufNum] != NULL);
 	      
 	      // step3: send buffers to XFER ranks asynchronously
 	      
 	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
 			  io_rank,destRank,tagLocal);
 	      
-	      // non-blocking send 
-	      MPI_Isend(&buffers[buf_num][0],messageSize,MPI_UNSIGNED_CHAR,destRank,
+	      MPI_Isend(&buffers[bufNum][0],messageSize,MPI_UNSIGNED_CHAR,destRank,
 			tagLocal,XFER_COMM,&requestHandle);
 	      
 	      // queue up these messages as being in flight
 	  
-	      MsgRecord message(buf_num,requestHandle);
+	      MsgRecord message(bufNum,requestHandle);
 	      messageQueue_.push_back(message);
 
 	    }
@@ -191,10 +180,12 @@ void sortio_Class::Transfer_Tasks_Work()
       
       checkForSendCompletion(waitFlag=false,0,iter=count);
       
-      // sleep a bit on iterations which did not have any data to send
+      // Sleep a bit on iterations which did not have any data to send
       
       if(numBuffersToTransfer == 0)
 	usleep(USLEEP_INTERVAL);
+
+      count++;
       
     } //  end xfer of all files
 
@@ -204,8 +195,10 @@ void sortio_Class::Transfer_Tasks_Work()
   return;
 }
 
-// Check on messages in flight and free up data transfer buffers for
-// any which have completed.
+// -------------------------------------------------------------------------
+// checkForSendCompletion() Check on messages in flight and free up
+// data transfer buffers for any which have completed. 
+// -------------------------------------------------------------------------
 
 void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter)
 {
@@ -214,7 +207,7 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
   // outstanding message is less than provided waterMark). To wait for
   // all outstanding messages, enable waitFlag and set waterMark=0
   // 
-  // waterMark has no impact if !waitFlag
+  // note that waterMark has no impact if !waitFlag
 
   if(messageQueue_.size() == 0 || messageQueue_.size() <= waterMark )
     return;
@@ -230,14 +223,14 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
       bufNum = it->getBufNum();
       handle = it->getHandle();
 
-      // check if iSend has completed
+      // check if send has completed
 
       MPI_Test(&handle,&messageCompleted,&status);
 
       if(messageCompleted)
 	{
-	  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] message from buf %i complete (iter=%i)\n",io_rank,bufNum,iter);
-
+	  grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] message from buf %i complete (iter=%i)\n",io_rank,bufNum,iter);
+	  
 	  it = messageQueue_.erase(it++);
 	  
 	  // re-enable this buffer for eligibility
@@ -273,3 +266,5 @@ int sortio_Class::CycleDestRank()
 
   return(startingDestRank);
 }
+
+
