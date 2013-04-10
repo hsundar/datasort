@@ -16,5 +16,10 @@ configure
 depcomp
 install-sh
 test
-
-
+iosort.*.out
+run*.log
+.offset.tmp
+foo
+check_stalls
+hello.c
+master-slave
