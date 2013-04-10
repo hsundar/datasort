@@ -40,15 +40,16 @@ fi
 
 echo "parsort_prefix = = $PARSORT_PREFIX"
 ac_PARSORT_save_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="-I${PARSORT_PREFIX}/include -I${PARSORT_PREFIX}/include/binOps -I${PARSORT_PREFIX}/include/seq -I${PARSORT_PREFIX}/include/omp_par"""
+CPPFLAGS="-I${PARSORT_PREFIX}/include -I${PARSORT_PREFIX}/include/par -I${PARSORT_PREFIX}/include/binOps -I${PARSORT_PREFIX}/include/seq -I${PARSORT_PREFIX}/include/omp_par"
 AC_LANG_PUSH([C++])
 
 succeeded=no
-AC_CHECK_HEADER([par/parUtils.h],[succeeded=yes],[succeeded=no])
+AC_CHECK_HEADER([parUtils.h],[succeeded=yes],[succeeded=no])
 
 if test "$succeeded" = no; then
     AC_MSG_ERROR([parSort headers not found.  Try either --with-parsort or setting PARSORT_DIR.])
 fi
+AC_SUBST(PARSORT_PREFIX)
 
 
 # Checks for header files.

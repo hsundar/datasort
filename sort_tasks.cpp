@@ -1,5 +1,11 @@
 #include "sortio.h"
+
+#include "binOps/binUtils.h"
+#include "omp_par/ompUtils.h"
+#include "oct/octUtils.h"
 #include "par/parUtils.h"
+
+using namespace par;
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
@@ -138,6 +144,10 @@ void sortio_Class::manageSortProcess()
 
   // some expected psuedo-code for 
 
+  std::vector <int> a(100);
+  std::vector <int> b(100);
+
+  par::sampleSort(a,b,SORT_COMM);
 
 
   MPI_Barrier(SORT_COMM);
