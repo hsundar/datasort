@@ -23,3 +23,11 @@ foo
 check_stalls
 hello.c
 master-slave
+read_raw.cpp
+hostlist
+iosort.*.quiet
+job.mpi
+foo.c
+foo.log
+run_foo
+output.redirect.log
