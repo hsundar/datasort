@@ -14,14 +14,14 @@
 
 void sortio_Class::beginRecvTransferProcess()
 {
-  assert(initialized);
+  assert(initialized_);
 
-  if(!is_xfer_task)		// rules out any tasks not in XFER_COMM
+  if(!isXFERTask_)		// rules out any tasks not in XFER_COMM
     return;
-  if(xfer_rank < nio_tasks)	// rules out the sending tasks in XFER_COMM
+  if(xferRank_ < numIoTasks_)	// rules out the sending tasks in XFER_COMM
     return;
 
-  int recvRank = nio_tasks;
+  int recvRank = numIoTasks_;
   int iter     = 0;
   int tagXFER  = 1000;
   unsigned long int recordsPerFile;
@@ -68,7 +68,7 @@ void sortio_Class::beginRecvTransferProcess()
 
   int handshake = 1;
   grvy_printf(DEBUG,"[sortio][XFER/IPC][%.4i] posting IPC handshake (%i to %i)...\n",
-	      xfer_rank,num_local,localSortRank_);
+	      xferRank_,numLocal_,localSortRank_);
 
   MPI_Send(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM);
 
@@ -80,14 +80,14 @@ void sortio_Class::beginRecvTransferProcess()
   gt.BeginTimer("XFER/Recv");
   dataTransferred_ = 0;
 
-  for(int ifile=0;ifile<num_files_total;ifile++)
+  for(int ifile=0;ifile<numFilesTotal_;ifile++)
     {
       tagXFER++;
 
       grvy_printf(DEBUG,"[sortio][IO/Recv][%.4i] syncFlag[0] = %i, recvRank = %i (file = %i)\n",
-		  xfer_rank,syncFlags[0],recvRank,ifile);
+		  xferRank_,syncFlags[0],recvRank,ifile);
 
-      if(xfer_rank == recvRank)
+      if(xferRank_ == recvRank)
 	{
 
 	  // stall briefly if last data transfer to local SORT rank is
@@ -103,7 +103,7 @@ void sortio_Class::beginRecvTransferProcess()
 		if(syncFlags[0] == 0)
 		  {
 		    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalled for"
-				" %9.4e secs (iter=%i)\n",xfer_rank,1.0e-6*i*usleepInterval,ifile);
+				" %9.4e secs (iter=%i)\n",xferRank_,1.0e-6*i*usleepInterval,ifile);
 		    break;
 		  }
 	      }
@@ -113,20 +113,20 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  MPI_Status status;
 	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",
-		      xfer_rank,iter,tagXFER);
+		      xferRank_,iter,tagXFER);
 
 	  MPI_Recv(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status);
 
-	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xfer_rank,iter);
+	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xferRank_,iter);
 
 	  // flag buffer as being eligible for transfer via IPC
 
 	  syncFlags[0] = 1;
-	} // end if(xfer_rank == recvRank)
+	} // end if(xferRank_ == recvRank)
 
       recvRank++;
-      if(recvRank >= nxfer_tasks)
-	recvRank = nio_tasks;
+      if(recvRank >= numXferTasks_)
+	recvRank = numIoTasks_;
 
       iter++;
       dataTransferred_ += messageSize;
@@ -141,8 +141,8 @@ void sortio_Class::beginRecvTransferProcess()
 
   gt.EndTimer("XFER/Recv");
 
-  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xfer_rank);
-  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xfer_rank,dataTransferred_);
+  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xferRank_);
+  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
 
   return;
 }

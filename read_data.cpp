@@ -6,29 +6,29 @@
 
 void sortio_Class::Init_Read()
 {
-  assert(initialized);
+  assert(initialized_);
 
   // This routine is only meaningful on IO_tasks
 
-  if(!is_io_task)
+  if(!isIOTask_)
     return;
 
   gt.BeginTimer("Init Read");
 
   // Initialize read buffers - todo: think about memory pinning here
 
-  buffers.resize(MAX_READ_BUFFERS);
+  buffers_.resize(MAX_READ_BUFFERS);
 
   for(int i=0;i<MAX_READ_BUFFERS;i++)
     {
-      buffers[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
-      assert(buffers[i] != NULL);
+      buffers_[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+      assert(buffers_[i] != NULL);
 
       // Flag buffer as being eligible to receive data
       emptyQueue_.push_back(i);
     }
 
-  if(master_io)
+  if(isMasterIO_)
     {
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio][IO] %i Read buffers allocated (%i MB each)\n",
@@ -71,24 +71,24 @@ void sortio_Class::Init_Read()
 void sortio_Class::ReadFiles()
 {
 
-  assert(initialized);
-  assert(is_io_task);
+  assert(initialized_);
+  assert(isIOTask_);
 
   unsigned long records_per_file;
 
   gt.BeginTimer("Raw Read");
-  int num_iters = (num_files_total+nio_tasks-1)/nio_tasks;
+  int num_iters = (numFilesTotal_+numIoTasks_-1)/numIoTasks_;
   size_t read_size;
 
-  std::string filebase(indir);
+  std::string filebase(inputDir_);
   filebase += "/";
-  filebase += basename;
+  filebase += fileBaseName_;
 
   for(int iter=0;iter<num_iters;iter++)
     {
 
       std::ostringstream s_id;
-      int file_suffix = iter*nio_tasks + io_rank;
+      int file_suffix = iter*numIoTasks_ + ioRank_;
 
       // Optionally randomize so we can minimize local host
       // file-caching for more legitimate reads; the idea here is to
@@ -96,11 +96,11 @@ void sortio_Class::ReadFiles()
       // dataset sizes. We just keep a local file here and iterate an
       // offset on each run
 
-      if(random_read_offset)
+      if(random_read_offset_)
 	{
 #if 0
-	  int min_index = iter*nio_tasks;
-	  int max_index = iter*nio_tasks + (nio_tasks-1);
+	  int min_index = iter*numIoTasks_;
+	  int max_index = iter*numIoTasks_ + (numIoTasks_-1);
 #endif
 	  int offset;
 
@@ -116,7 +116,7 @@ void sortio_Class::ReadFiles()
 	      else
 		offset = 1;
 
-	      if(offset > nio_tasks)
+	      if(offset > numIoTasks_)
 		offset = 0;
 
 	      fp_offset = fopen(".offset.tmp","w");
@@ -134,19 +134,19 @@ void sortio_Class::ReadFiles()
 	  MPI_Bcast(&offset,1,MPI_INTEGER,0,IO_COMM);
 
 #if 0
-	  printf("[sortio][%3i]: original file_suffix = %3i\n",io_rank,file_suffix);
+	  printf("[sortio][%3i]: original file_suffix = %3i\n",ioRank_,file_suffix);
 #endif
 	  file_suffix += offset;
 
-	  if(file_suffix > (iter*nio_tasks + (nio_tasks-1)) )
-	    file_suffix -= nio_tasks;
+	  if(file_suffix > (iter*numIoTasks_ + (numIoTasks_-1)) )
+	    file_suffix -= numIoTasks_;
 
 #if 0
-	  printf("[sortio][%3i]: new file_suffix = %3i\n",io_rank,file_suffix);
+	  printf("[sortio][%3i]: new file_suffix = %3i\n",ioRank_,file_suffix);
 #endif
 	} // end if(random_read_offset)
 
-      if(file_suffix >= num_files_total)
+      if(file_suffix >= numFilesTotal_)
 	{
 	  gt.EndTimer("Raw Read");
 	  return;
@@ -155,7 +155,7 @@ void sortio_Class::ReadFiles()
       s_id << file_suffix;
       std::string infile = filebase + s_id.str();
 
-      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: filename = %s\n",io_rank,infile.c_str());
+      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: filename = %s\n",ioRank_,infile.c_str());
 
       FILE *fp = fopen(infile.c_str(),"r");
       
@@ -175,7 +175,7 @@ void sortio_Class::ReadFiles()
       if(emptyQueue_.size() == 0 )
 	for(int i=0;i<5000;i++)
 	  {
-	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",io_rank);
+	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",ioRank_);
 	    usleep(100000);
 	    if(emptyQueue_.size() > 0)
 	      break;
@@ -184,7 +184,7 @@ void sortio_Class::ReadFiles()
       
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {
-	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",io_rank,emptyQueue_.size());
+	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",ioRank_,emptyQueue_.size());
 	assert(emptyQueue_.size() > 0);
 	buf_num = emptyQueue_.front();
 	emptyQueue_.pop_front();
@@ -194,7 +194,7 @@ void sortio_Class::ReadFiles()
 
       // initialize for next file read
 
-      buffer           = buffers[buf_num];
+      buffer           = buffers_[buf_num];
       read_size        = REC_SIZE;
       records_per_file = 0;
 
@@ -212,7 +212,7 @@ void sortio_Class::ReadFiles()
 
 	  assert(read_size == REC_SIZE);
 
-	  num_records_read++;
+	  numRecordsRead_++;
 	  records_per_file++;
 	}
 
@@ -220,20 +220,20 @@ void sortio_Class::ReadFiles()
 
       if(isFirstRead_)
 	{
-	  records_per_file_ = records_per_file;
+	  recordsPerFile_ = records_per_file;
 	  isFirstRead_ = false;
 	}
 
       // we assume for now, that all files are equal in size
-      assert(records_per_file == records_per_file_);
+      assert(records_per_file == recordsPerFile_);
 
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {
 	fullQueue_.push_back(buf_num);
-	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",io_rank,fullQueue_.size());
+	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",ioRank_,fullQueue_.size());
       }
 
-      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: records read = %i\n",io_rank,records_per_file);
+      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: records read = %i\n",ioRank_,records_per_file);
 
     } // end read iteration loop
 
