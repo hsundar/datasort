@@ -19,12 +19,43 @@ ACX_MPI([HAVE_MPI=1 CXX="$MPICXX" CC="$MPICC" AC_DEFINE(HAVE_MPI,1,[Define if MP
 
 AX_OPENMP([], AC_MSG_ERROR([Could not detect required OpenMP support]))
 
-# Checks for libraries.
-
 AX_PATH_GRVY([0.30],[yes])
 
+# Check for parsort location 
+
+AC_ARG_VAR(PARSORT_DIR,[root directory of PARSORT installation])
+
+AC_ARG_WITH(parsort,
+  [AS_HELP_STRING([--with-parsort[=DIR]],[root directory of PARSORT installation (default = PARSORT_DIR)])],
+  [with_parsort=$withval
+if test "${with_parsort}" != yes; then
+    PARSORT_PREFIX=$withval
+fi
+],[
+with_parsort=yes
+if test "x${PARSORT_DIR}" != "x"; then
+   PARSORT_PREFIX=${PARSORT_DIR}
+fi
+])
+
+echo "parsort_prefix = = $PARSORT_PREFIX"
+ac_PARSORT_save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="-I${PARSORT_PREFIX}/include -I${PARSORT_PREFIX}/include/binOps -I${PARSORT_PREFIX}/include/seq -I${PARSORT_PREFIX}/include/omp_par"""
+AC_LANG_PUSH([C++])
+
+succeeded=no
+AC_CHECK_HEADER([par/parUtils.h],[succeeded=yes],[succeeded=no])
+
+if test "$succeeded" = no; then
+    AC_MSG_ERROR([parSort headers not found.  Try either --with-parsort or setting PARSORT_DIR.])
+fi
+
+
 # Checks for header files.
+AC_LANG_PUSH([C])
 AC_CHECK_HEADERS([fcntl.h stdlib.h sys/ioctl.h unistd.h])
 BOOST_REQUIRE([1.46])
+
+
 
 AC_OUTPUT(Makefile)

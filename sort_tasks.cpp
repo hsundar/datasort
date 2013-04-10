@@ -1,4 +1,5 @@
 #include "sortio.h"
+#include "par/parUtils.h"
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
@@ -134,6 +135,10 @@ void sortio_Class::manageSortProcess()
 
       count++;
     }
+
+  // some expected psuedo-code for 
+
+
 
   MPI_Barrier(SORT_COMM);
 
