@@ -1,0 +1,89 @@
+COMPILE AND EXECUTE
+
+Compile and execute using:
+
+./scripts/run.sh
+
+
+
+
+
+
+CHANGES
+
+A new namespace has been created 'omp_par' for OpenMP function.
+The following functions have been defined in include/omp_par/ompUtils.h
+
+merge : parallel merge.
+
+merge_sort : parallel merge sort ( default < ).
+
+reduce : parallel reduction.
+
+scan : parallel scan.
+
+
+
+
+
+
+PSEUDOCODE ( omp_par::merge_sort ) : T(n,p) = T_std_sort(n/p) + O((n/p)*log(p)) [Assuming parallel merge to be O(n/p)]
+=================================== -------------------------------------------
+
+A[0:n-1]: Input vector
+p       : Number of OMP threads
+
+% For simplicity, assume n to be multiple of p.
+% And assume p be a power of 2.
+
+1) parfor( i=1 ; i<p ; i++ )
+2)   std::sort(A[ {i*n/p} : {(i+1)*n/p} ]);
+3) end for
+
+4) for( i=n/p ; i<n ; i=i*2 )
+5)   for( j=0 ; j<n ; j=j+2*i )
+6)     omp_par::merge( A[j : (j+i)] , A[(j+i) : (j+2*i)] )        //It is not really inplace.
+7)   end for
+8) end for
+
+
+
+
+
+
+PSEUDOCODE ( omp_par::merge ) : T(n,p) = O(m*log(n) + log(p) + n/p)
+==============================  -----------------------------------
+
+A[0 : n1-1] : First input vector.
+B[0 : n2-1] : Second input vector.
+C[0 : n-1 ] : Output vector (n=n1+n2).
+p : Number of OMP threads.
+
+m=~10 (a small constant integer.)
+S0[0:2*p*m] : array
+S1[0:p]     : array
+
+% Each thread samples the arrays A and B at m points and determines the point at which this will split the final array C.
+% THen out of these samples each thread selects the optimal splitters i.e. which divide the final array C at points i*n/p for i=1:p-1.
+1) parfor( i=0; i<p; i++)
+2)   for( j=0; j<m; j++)
+3)     S0[i*m+j]     = { The index at which the element A[(i*m+j)*(n1/p/m)] will split C. }
+                       { This is done using a binary search in B. }
+4)     S0[i*m+j+p*m] = { The index at which the element B[(i*m+j)*(n2/p/m)] will split C. }
+5)   end fr
+6) end for
+
+7) parfor( i=1; i<p; i++)
+8)   S1[i] = { Find in S0 the index closest to i*n/p in S0. }
+             { This can again be done by binary search. }
+9) end for
+10) S1[0]=0;
+11) S1[p]=n;
+
+
+12) parfor( i=0; i<p; i++)
+13)   C[ S1[i] : S1[i+1]-1 ] = {std::merge() to get this partial result}
+14) end for
+
+
+

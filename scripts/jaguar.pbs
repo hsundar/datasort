@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+#PBS -A CSC092
+#
+# walltime : maximum wall clock time (hh:mm:ss)
+#PBS -l walltime=00:10:00
+#
+#PBS -l gres=widow2
+#
+# export all my environment variables to the job
+# PBS -V
+#PBS -v PATH,LD_LIBRARY_PATH,PV_NCPUS,PV_LOGIN,PV_LOGIN_PORT,THREADS,MPI_PROC,EXEC,NUM_PTS,UNIF
+#
+# job name (default = name of script file)
+#PBS -N fmm_jaguar
+#
+# PBS -q q
+
+WORK_DIR=${PBS_O_WORKDIR}
+cd ${WORK_DIR}
+export OMP_NUM_THREADS=${THREADS}
+
+time aprun -n${MPI_PROC} -d${THREADS} ${EXEC} ${OMP_NUM_THREADS} ${NUM_PTS}
+

@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# walltime : maximum wall clock time (hh:mm:ss)
+#PBS -l walltime=60:00
+#
+# PBS -l nodes=1 size=12
+#
+# export all my environment variables to the job
+#PBS -V
+#
+# job name (default = name of script file)
+#PBS -N par_sort
+#
+# PBS -q q
+
+WORK_DIR=${PBS_O_WORKDIR}
+export TMPDIR=${WORK_DIR}/tmp
+MY_NODEFILE=${TMPDIR}/my_node_file
+cp ${PBS_NODEFILE} ${MY_NODEFILE}
+
+cd ${WORK_DIR}
+export OMP_NUM_THREADS=${THREADS}
+time mpirun --hostfile $MY_NODEFILE -np ${MPI_PROC} ${EXEC} ${THREADS} l10MB UNIF
+

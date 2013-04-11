@@ -1,0 +1,3 @@
+Include 'avxUtils.h' in ompUtils.txx
+Include '-xavx' option while compiling in Makefile_ronaldo
+Include '-I./include/avx' in Makefile_ronaldo 
