@@ -582,7 +582,7 @@ void sortio_Class::addBuffertoEmptyQueue(int bufNum)
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
   {
     emptyQueue_.push_back(bufNum);
-    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",ioRank_,bufNum);
+    grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",ioRank_,bufNum);
   }
   return;
 }

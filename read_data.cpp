@@ -169,7 +169,6 @@ void sortio_Class::ReadFiles()
       int buf_num;
       unsigned char *buffer;	
 
-#if 1
       // Stall briefly if no empty queue buffers are available
 
       if(emptyQueue_.size() == 0 )
@@ -180,11 +179,10 @@ void sortio_Class::ReadFiles()
 	    if(emptyQueue_.size() > 0)
 	      break;
 	  }
-#endif
       
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {
-	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",ioRank_,emptyQueue_.size());
+	grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: # Empty buffers = %2i\n",ioRank_,emptyQueue_.size());
 	assert(emptyQueue_.size() > 0);
 	buf_num = emptyQueue_.front();
 	emptyQueue_.pop_front();
@@ -233,7 +231,7 @@ void sortio_Class::ReadFiles()
 	grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",ioRank_,fullQueue_.size());
       }
 
-      grvy_printf(INFO,"[sortio][IO/Read][%.4i]: records read = %i\n",ioRank_,records_per_file);
+      grvy_printf(DEBUG,"[sortio][IO/Read][%.4i]: records read = %i\n",ioRank_,records_per_file);
 
     } // end read iteration loop
 

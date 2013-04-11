@@ -19,7 +19,6 @@ void sortio_Class::manageSortProcess()
   assert(initialized_);
 
   int messageSize;
-  //std::vector<unsigned char > sortBuffer;
   std::vector<sortRecord > sortBuffer;
 
   if(!isSortTask_)
@@ -119,21 +118,24 @@ void sortio_Class::manageSortProcess()
 	      assert(syncFlags[0] == 1);
 	    }
 
-	  // grab the data for use locally
+	  // copy the data for sort use locally
 
 #if 1
-	  size_t fourGBLimit = 1U*1000U*1000U*1000U;
+	  size_t memLimit = 1U*1000U*1000U*1000U;
 	  
-	  if(sortBuffer.size() > fourGBLimit )
+	  if(sortBuffer.size() > memLimit )
 	    sortBuffer.clear();	// hack for testing 
 	  
 	  //sortBuffer.insert(sortBuffer.end(),buffer,buffer+messageSize);
+
+	  sortRecord foo(buffer);
+	  sortBuffer.push_back(sortRecord::fromBuffer(buffer));
 
 	  //	  std::vector<char> foo(numRecordsPerXfer);
 	  //	  sortBuffer.insert(sortBuffer.end(),foo,foo+numRecordsPerXfer);
 #endif
 	  
-	  grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] %i re-enabling buffer (iter =%i)\n",
+	  grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] %i re-enabling buffer (iter =%i)\n",
 		      sortRank_,numFilesAvailTotal,count);
 
 	  syncFlags[0] = 0;
@@ -165,57 +167,37 @@ void sortio_Class::manageSortProcess()
       printf("size of sortBuffer = %e\n",foo);
     }
 
-  grvy_printf(INFO,"[sortio][SORT][%.4i]: ALL DONE\n",sortRank_);
+  if(isMasterSort_)
+    grvy_printf(INFO,"[sortio][SORT][%.4i]: ALL DONE\n",sortRank_);
+
   fflush(NULL);
 
   // Now we have the data, let's test some sorting
 
-  // some expected psuedo-code for 
+#define DO_SORT
 
-  unsigned int numBins = 10;  
-  std::vector <int> a(2048);
-  //std::vector <int> a(4096);
+#ifdef DO_SORT
 
-  srand(numLocal_);
-  
-  for(size_t i=0;i<a.size();i++)
-    a[i] = rand();
+  const unsigned int numBins = 10;  
 
-  //    a[i] = (rand()+i*numLocal_) % 100000 ;
-  
-  gt.BeginTimer("Sort Binning");
+  gt.BeginTimer("Local Sort");
+  omp_par::merge_sort(&sortBuffer[0],&sortBuffer[sortBuffer.size()]);
+  gt.EndTimer("Local Sort");
 
-  omp_par::merge_sort(&a[0],&a[a.size()]);
-  std::vector <int> sortBins = par::Sorted_approx_Select(a,10,SORT_COMM);
 
-  gt.EndTimer("Sort Binning");
+  gt.BeginTimer("Global Binning");
+  std::vector<sortRecord> sortBins = par::Sorted_approx_Select(sortBuffer,numBins,SORT_COMM);
+  gt.EndTimer("Global Binning");
 
-  assert(sortBins.size() == 10);
+  assert(sortBins.size() == numBins);
 
-#if 0
-  if(isMasterSort_)
-    for(int i=0;i<numBins;i++)
-      printf("sortBins[%i] = %i\n",i,sortBins[i]);
-  
+  gt.BeginTimer("Bucket and Write");
+  par::bucketDataAndWrite(sortBuffer,sortBins,"/tmp/foo",SORT_COMM);
+  gt.EndTimer("Bucket and Write");
+
   MPI_Barrier(SORT_COMM);
 
-
-  if(sortRank_ == 2)
-    for(int i=0;i<numBins;i++)
-      printf("[%i]: sortBins[%i] = %i\n",numLocal_,i,sortBins[i]);
 #endif
-
-  MPI_Barrier(SORT_COMM);
-
-  assert(a.size() > 0);
-  assert(sortBins.size() > 0);
-
-  par::bucketDataAndWrite(a,sortBins,"/tmp/foo",SORT_COMM);
-
-
-  MPI_Barrier(SORT_COMM);
-
-  //  printf("size of (a,b) = (%zi,%zi)\n",a.size(),b.size());
 
   return;
 }

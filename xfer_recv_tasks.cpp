@@ -95,7 +95,6 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  const int usleepInterval = 100;
 
-#if 1
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=100000;i++)
 	      {
@@ -107,7 +106,6 @@ void sortio_Class::beginRecvTransferProcess()
 		    break;
 		  }
 	      }
-#endif
 
 	  assert(syncFlags[0] == 0);
 
@@ -117,7 +115,7 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  MPI_Recv(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status);
 
-	  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xferRank_,iter);
+	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xferRank_,iter);
 
 	  // flag buffer as being eligible for transfer via IPC
 
@@ -141,8 +139,11 @@ void sortio_Class::beginRecvTransferProcess()
 
   gt.EndTimer("XFER/Recv");
 
-  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xferRank_);
-  grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
+  if(xferRank_ == numIoTasks_)
+    {
+      grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xferRank_);
+      grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
+    }
 
   return;
 }

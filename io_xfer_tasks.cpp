@@ -80,7 +80,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	  assert (MPI_Allreduce(&remainingLocal,&remainingGlobal,1,MPI_INTEGER,MPI_SUM,IO_COMM) == MPI_SUCCESS);
 
 	  if(isMasterIO_)
-	    grvy_printf(INFO,"[sortio][IO/XFER] All files sent, total # of outstanding messages = %i\n",
+	    grvy_printf(DEBUG,"[sortio][IO/XFER] All files sent, total # of outstanding messages = %i\n",
 			remainingGlobal);
 	    
 	  if(remainingGlobal == 0)    // <-- finito
@@ -121,7 +121,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	}
 
       if( (numBuffersToTransfer > 0) && isMasterIO_)
-	grvy_printf(INFO,"[sortio][IO/XFER] Number of hosts with data to send = %3i -> iter = %i\n",
+	grvy_printf(DEBUG,"[sortio][IO/XFER] Number of hosts with data to send = %3i -> iter = %i\n",
 		    numBuffersToTransfer,count);
 
 
@@ -138,7 +138,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      // are over a runtime-specified watermark, let's stall
 	      // and flush the local message queue;
 	      
-	      grvy_printf(INFO,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",ioRank_,messageQueue_.size());
+	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] outstanding sends = %i\n",ioRank_,messageQueue_.size());
 	      
 	      checkForSendCompletion(waitFlag=true,MAX_MESSAGES_WATERMARK,iter=count);
 	      
@@ -150,7 +150,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      {
 		bufNum = fullQueue_.front();
 		fullQueue_.pop_front();
-		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",ioRank_,bufNum);
+		grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",ioRank_,bufNum);
 	      }
 
 	      assert(buffers_[bufNum] != NULL);
@@ -189,7 +189,9 @@ void sortio_Class::Transfer_Tasks_Work()
       
     } //  end xfer of all files
 
-  grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",ioRank_);
+  if(isMasterIO_)
+    grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",ioRank_);
+
   fflush(NULL);
 
   return;
