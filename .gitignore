@@ -31,3 +31,4 @@ foo.c
 foo.log
 run_foo
 output.redirect.log
+core.*

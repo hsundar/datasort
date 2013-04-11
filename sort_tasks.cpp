@@ -5,7 +5,7 @@
 #include "oct/octUtils.h"
 #include "par/parUtils.h"
 
-using namespace par;
+//using namespace par;
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
@@ -142,14 +142,6 @@ void sortio_Class::manageSortProcess()
       count++;
     }
 
-  // some expected psuedo-code for 
-
-  std::vector <int> a(100);
-  std::vector <int> b(100);
-
-  par::sampleSort(a,b,SORT_COMM);
-
-
   MPI_Barrier(SORT_COMM);
 
   if(isLocalSortMaster_)
@@ -162,6 +154,60 @@ void sortio_Class::manageSortProcess()
 
   grvy_printf(INFO,"[sortio][SORT][%.4i]: ALL DONE\n",sortRank_);
   fflush(NULL);
+
+  // Now we have the data, let's test some sorting
+
+  // some expected psuedo-code for 
+
+  unsigned int numBins = 10;  
+  std::vector <int> a(2048);
+  //std::vector <int> a(4096);
+  
+  for(size_t i=0;i<a.size();i++)
+    a[i] = (rand()+i*numLocal_) % 100000 ;
+  
+  gt.BeginTimer("Sort Binning");
+  
+  std::vector <int> sortBins = par::Sorted_approx_Select(a,numBins,SORT_COMM);
+  
+  gt.EndTimer("Sort Binning");
+
+  if(isMasterSort_)
+    for(int i=0;i<numBins;i++)
+      printf("sortBins[%i] = %i\n",i,sortBins[i]);
+  
+  MPI_Barrier(SORT_COMM);
+
+  if(sortRank_ == 2)
+    for(int i=0;i<numBins;i++)
+      printf("[%i]: sortBins[%i] = %i\n",numLocal_,i,sortBins[i]);
+
+  MPI_Barrier(SORT_COMM);
+
+  assert(a.size() > 0);
+  assert(sortBins.size() > 0);
+
+  par::bucketDataAndWrite(a,sortBins,"/tmp/foo",SORT_COMM);
+
+
+#if 0
+  //  for(int ibin=0;ibin<numBins;ibin++)
+    {
+
+      //      for(size_t i=0;i<a.size();i++)
+      //	a[i]++;
+
+
+
+      //      printf("[%i][%i] size = %zi\n",numLocal_,1,a.size());
+
+    }
+#endif      
+
+
+  MPI_Barrier(SORT_COMM);
+
+  //  printf("size of (a,b) = (%zi,%zi)\n",a.size(),b.size());
 
   return;
 }
