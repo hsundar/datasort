@@ -1,17 +1,15 @@
 #include "sortio.h"
-
 #include "binOps/binUtils.h"
 #include "omp_par/ompUtils.h"
 #include "oct/octUtils.h"
 #include "par/parUtils.h"
-
-//using namespace par;
+#include "gensort/sortRecord.h"
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
 // 
-// Receives input sort data from receiving XFER tasks via 1-sided
-// updates and manages the overall sort process.
+// Receives input sort data from receiving XFER tasks via IPC
+// and manages the overall sort process.
 // 
 // Operates on SORT_COMM.
 // --------------------------------------------------------------------
@@ -21,7 +19,8 @@ void sortio_Class::manageSortProcess()
   assert(initialized_);
 
   int messageSize;
-  std::vector<unsigned char > sortBuffer;
+  //std::vector<unsigned char > sortBuffer;
+  std::vector<sortRecord > sortBuffer;
 
   if(!isSortTask_)
     return;
@@ -64,8 +63,16 @@ void sortio_Class::manageSortProcess()
   buffer    = static_cast<unsigned char *>(region2.get_address());
 
   assert(syncFlags[0] == 0);
-  messageSize = syncFlags[1];	// buffersize 
-  //assert(syncFlags[1] == 0);
+  messageSize = syncFlags[1];	// raw buffersize passed 
+
+  par::Mpi_datatype <sortRecord> MPIRecordType; 
+  const int numRecordsPerXfer = messageSize/sizeof(sortRecord);
+
+  if(isMasterSort_)
+    {
+      grvy_printf(INFO,"[sortio][SORT] Message transfer size = %i\n",messageSize);
+      grvy_printf(INFO,"[sortio][SORT] Number of records     = %i\n",numRecordsPerXfer);
+    }
 
   // Start main processing loop; check for data from XFER tasks via
   // IPC and manage sort process. Note that XFER tasks receive data
@@ -120,7 +127,10 @@ void sortio_Class::manageSortProcess()
 	  if(sortBuffer.size() > fourGBLimit )
 	    sortBuffer.clear();	// hack for testing 
 	  
-	  sortBuffer.insert(sortBuffer.end(),buffer,buffer+messageSize);
+	  //sortBuffer.insert(sortBuffer.end(),buffer,buffer+messageSize);
+
+	  //	  std::vector<char> foo(numRecordsPerXfer);
+	  //	  sortBuffer.insert(sortBuffer.end(),foo,foo+numRecordsPerXfer);
 #endif
 	  
 	  grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] %i re-enabling buffer (iter =%i)\n",
@@ -150,6 +160,9 @@ void sortio_Class::manageSortProcess()
 
       MPI_Send(&handshake,1,MPI_INTEGER,localXferRank_,1,GLOB_COMM);
       assert(handshake == 2);
+
+      double foo = sortBuffer.size();
+      printf("size of sortBuffer = %e\n",foo);
     }
 
   grvy_printf(INFO,"[sortio][SORT][%.4i]: ALL DONE\n",sortRank_);
@@ -162,25 +175,35 @@ void sortio_Class::manageSortProcess()
   unsigned int numBins = 10;  
   std::vector <int> a(2048);
   //std::vector <int> a(4096);
+
+  srand(numLocal_);
   
   for(size_t i=0;i<a.size();i++)
-    a[i] = (rand()+i*numLocal_) % 100000 ;
+    a[i] = rand();
+
+  //    a[i] = (rand()+i*numLocal_) % 100000 ;
   
   gt.BeginTimer("Sort Binning");
-  
-  std::vector <int> sortBins = par::Sorted_approx_Select(a,numBins,SORT_COMM);
-  
+
+  omp_par::merge_sort(&a[0],&a[a.size()]);
+  std::vector <int> sortBins = par::Sorted_approx_Select(a,10,SORT_COMM);
+
   gt.EndTimer("Sort Binning");
 
+  assert(sortBins.size() == 10);
+
+#if 0
   if(isMasterSort_)
     for(int i=0;i<numBins;i++)
       printf("sortBins[%i] = %i\n",i,sortBins[i]);
   
   MPI_Barrier(SORT_COMM);
 
+
   if(sortRank_ == 2)
     for(int i=0;i<numBins;i++)
       printf("[%i]: sortBins[%i] = %i\n",numLocal_,i,sortBins[i]);
+#endif
 
   MPI_Barrier(SORT_COMM);
 
@@ -188,21 +211,6 @@ void sortio_Class::manageSortProcess()
   assert(sortBins.size() > 0);
 
   par::bucketDataAndWrite(a,sortBins,"/tmp/foo",SORT_COMM);
-
-
-#if 0
-  //  for(int ibin=0;ibin<numBins;ibin++)
-    {
-
-      //      for(size_t i=0;i<a.size();i++)
-      //	a[i]++;
-
-
-
-      //      printf("[%i][%i] size = %zi\n",numLocal_,1,a.size());
-
-    }
-#endif      
 
 
   MPI_Barrier(SORT_COMM);
