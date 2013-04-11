@@ -4060,7 +4060,7 @@ namespace par {
           fclose(fp);
           // update
           bucket.clear();
-          bucket_prev = bucket_disp;
+          // bucket_prev = bucket_disp;  (ks 4/11/13 - var not used)
         }
 
 
