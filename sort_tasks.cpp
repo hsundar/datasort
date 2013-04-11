@@ -64,9 +64,14 @@ void sortio_Class::manageSortProcess()
   assert(syncFlags[0] == 0);
   messageSize = syncFlags[1];	// raw buffersize passed 
 
-  par::Mpi_datatype <sortRecord> MPIRecordType; 
-  const int numRecordsPerXfer = messageSize/sizeof(sortRecord);
+  //par::Mpi_datatype <sortRecord> MPIRecordType; 
 
+  std::vector<sortRecords> sortBins;        // binning buckets
+
+  bool needBinning              = true;
+  const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
+  const size_t binningWaterMark = 2*numRecordsPerXfer;
+  
   if(isMasterSort_)
     {
       grvy_printf(INFO,"[sortio][SORT] Message transfer size = %i\n",messageSize);
@@ -119,21 +124,19 @@ void sortio_Class::manageSortProcess()
 	    }
 
 	  // copy the data for sorting locally
-
-#if 1
-	  size_t memLimit = 1U*1000U*1000U*1000U;
 	  
-	  if(sortBuffer.size() > memLimit )
-	    sortBuffer.clear();	// hack for testing 
-
-	  for(int i=0;i<numRecordsPerXfer;i++)
-	    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
-	  //	    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[0]));
+	  if(sortMode_ > 0)
+	    {
+	      for(int i=0;i<numRecordsPerXfer;i++)
+		sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
 	  
 
-#endif
+	    }
+	  
 	  grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] %i re-enabling buffer (iter =%i)\n",
 		      sortRank_,numFilesAvailTotal,count);
+
+	  syncFlags[0] = 0;
 
 	  // verifyMode = 3 -> dump receiving data to verify data
 	  // integrity throughout transfer process
@@ -152,8 +155,34 @@ void sortio_Class::manageSortProcess()
 	      sortBuffer.clear();
 	    }
 
-	  syncFlags[0] = 0;
-	} 
+	}
+
+      // Check to see if we have enough data to do the initial binning
+
+      if(sortMode_ > 0)
+	if(needBinning)
+	  {
+	    if(sortBuffer.size() >= binningWatermark)
+	      {
+		gt.BeginTimer("Local Sort");
+		omp_par::merge_sort(&sortBuffer[0],&sortBuffer[sortBuffer.size()]);
+		gt.EndTimer("Local Sort");
+		
+		gt.BeginTimer("Global Binning");
+		sortBins = par::Sorted_approx_Select(sortBuffer,numBins,SORT_COMM);
+		gt.EndTimer("Global Binning");
+
+		assert(sortBins.size() == numBins);
+		
+		needBinning = false;
+	      }
+	  }
+	else
+	  {
+	    gt.BeginTimer("Bucket and Write");
+	    par::bucketDataAndWrite(sortBuffer,sortBins,"/tmp/foo",SORT_COMM);
+	    gt.EndTimer("Bucket and Write");	    
+	  }
 
       // identify next rank to receive...
 
