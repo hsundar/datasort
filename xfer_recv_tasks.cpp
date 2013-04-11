@@ -117,6 +117,19 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xferRank_,iter);
 
+	  // verifyMode = 2 -> dump data received in XFER_COMM to compare against input
+
+	  if(verifyMode_ == 2)
+	    {
+	      char filename[1024];
+	      sprintf(filename,"./partfromrecv%i",iter);
+	      FILE *fp = fopen(filename,"wb");
+	      assert(fp != NULL);
+	      
+	      fwrite(&buffer[0],sizeof(char),messageSize,fp);
+	      fclose(fp);
+	    }
+
 	  // flag buffer as being eligible for transfer via IPC
 
 	  syncFlags[0] = 1;

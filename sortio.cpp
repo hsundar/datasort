@@ -26,6 +26,7 @@ sortio_Class::sortio_Class()
   numXferTasks_             = 0;
   numSortTasks_             = 0;
   numRecordsRead_           = 0;
+  verifyMode_               = 0;
   localSortRank_            = -1;
   localXferRank_            = -1;
   fileBaseName_             = "part";
@@ -191,17 +192,20 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
       // Register defaults
 
-      iparse.Register_Var("sortio/max_read_buffers",      10 );
+      iparse.Register_Var("sortio/max_read_buffers",       10);
       iparse.Register_Var("sortio/max_file_size_in_mbs",  100);
-      iparse.Register_Var("sortio/max_messages_watermark",10 );
+      iparse.Register_Var("sortio/max_messages_watermark", 10);
+      iparse.Register_Var("sortio/verify_mode           ",  0);
 
       if(!overrideNumIOHosts_)
 	assert( iparse.Read_Var("sortio/num_io_hosts",        &numIoHosts_)           != 0 );
 
-      assert( iparse.Read_Var("sortio/input_dir",             &inputDir_)                  != 0 );
+      assert( iparse.Read_Var("sortio/input_dir",             &inputDir_)              != 0 );
+      assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/max_read_buffers",      &MAX_READ_BUFFERS)       != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs"  ,&MAX_FILE_SIZE_IN_MBS)   != 0 );
       assert( iparse.Read_Var("sortio/max_messages_watermark",&MAX_MESSAGES_WATERMARK) != 0 );
+
 
       // Simple sanity checks
 
@@ -228,6 +232,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   assert( MPI_Bcast(&numFilesTotal_,        1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numIoHosts_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&verifyMode_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_READ_BUFFERS,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,  1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INT,0,COMM) == MPI_SUCCESS );

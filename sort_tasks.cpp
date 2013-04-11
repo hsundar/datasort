@@ -118,25 +118,39 @@ void sortio_Class::manageSortProcess()
 	      assert(syncFlags[0] == 1);
 	    }
 
-	  // copy the data for sort use locally
+	  // copy the data for sorting locally
 
 #if 1
 	  size_t memLimit = 1U*1000U*1000U*1000U;
 	  
 	  if(sortBuffer.size() > memLimit )
 	    sortBuffer.clear();	// hack for testing 
+
+	  for(int i=0;i<numRecordsPerXfer;i++)
+	    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+	  //	    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[0]));
 	  
-	  //sortBuffer.insert(sortBuffer.end(),buffer,buffer+messageSize);
 
-	  sortRecord foo(buffer);
-	  sortBuffer.push_back(sortRecord::fromBuffer(buffer));
-
-	  //	  std::vector<char> foo(numRecordsPerXfer);
-	  //	  sortBuffer.insert(sortBuffer.end(),foo,foo+numRecordsPerXfer);
 #endif
-	  
 	  grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] %i re-enabling buffer (iter =%i)\n",
 		      sortRank_,numFilesAvailTotal,count);
+
+	  // verifyMode = 3 -> dump receiving data to verify data
+	  // integrity throughout transfer process
+
+	  if(verifyMode_ == 3)
+	    {
+	      char filename[1024];
+	      sprintf(filename,"./partverify%i",ifile);
+	      FILE *fp = fopen(filename,"wb");
+	      assert(fp != NULL);
+
+	      for(size_t i=0;i<sortBuffer.size();i++)
+		fwrite(&sortBuffer[i],sizeof(sortRecord),1,fp);
+
+	      fclose(fp);
+	      sortBuffer.clear();
+	    }
 
 	  syncFlags[0] = 0;
 	} 
@@ -162,9 +176,6 @@ void sortio_Class::manageSortProcess()
 
       MPI_Send(&handshake,1,MPI_INTEGER,localXferRank_,1,GLOB_COMM);
       assert(handshake == 2);
-
-      double foo = sortBuffer.size();
-      printf("size of sortBuffer = %e\n",foo);
     }
 
   if(isMasterSort_)
@@ -174,7 +185,7 @@ void sortio_Class::manageSortProcess()
 
   // Now we have the data, let's test some sorting
 
-#define DO_SORT
+  //#define DO_SORT
 
 #ifdef DO_SORT
 

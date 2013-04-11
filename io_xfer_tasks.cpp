@@ -168,6 +168,18 @@ void sortio_Class::Transfer_Tasks_Work()
 	      MsgRecord message(bufNum,requestHandle);
 	      messageQueue_.push_back(message);
 
+	      // verifyMode = 1 -> dump data sent to compare against input
+
+	      if(verifyMode_ == 1)
+		{
+		  char filename[1024];
+		  sprintf(filename,"./parttosend%i",numTransferredFiles+ioRank_);
+		  FILE *fp = fopen(filename,"wb");
+		  assert(fp != NULL);
+		  
+		  fwrite(&buffers_[bufNum][0],sizeof(char),messageSize,fp);
+		  fclose(fp);
+		}
 	    }
       
 	} // end if (numBuffersToTransfer > 0) 

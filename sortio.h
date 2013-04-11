@@ -86,6 +86,7 @@ class sortio_Class {
   int  numFilesTotal_;		         // total # of input files to sort
   int  numIoHosts_;		         // total # of desired unique IO hosts
   int  numSortHosts_;			 // total # of detected sort hosts;
+  int  verifyMode_;			 // verification mode (1=input data)
 
   unsigned long numRecordsRead_;         // total # of records read locally
   unsigned long recordsPerFile_;         // # of records read locally per file (assumed constant)
