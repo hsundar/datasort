@@ -32,3 +32,5 @@ foo.log
 run_foo
 output.redirect.log
 core.*
+sort_dist/
+sort_code/
