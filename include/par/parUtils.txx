@@ -2338,7 +2338,19 @@ namespace par {
 
       while(npes>1 && totSize>0){
         if(kway>npes) kway = npes;
-        int blk_size=npes/kway; assert(blk_size*kway==npes);
+        int blk_size=npes/kway; 
+	
+	if(blk_size*kway != npes)
+	  {
+	    printf("blk_size = %i\n",blk_size);
+	    printf("kway     = %i\n",kway);
+	    printf("npes     = %i\n",npes);
+	    //	    std::cout << "blk_size = " << blk_size << std::endl;
+	    //	    std::cout << "kway     = " << kway     << std::endl;
+	    //std::cout << "npes     = " << npes     << std::endl;
+	  }
+
+	assert(blk_size*kway==npes);
         int blk_id=myrank/blk_size, new_pid=myrank%blk_size;
 
         // Determine splitters.
