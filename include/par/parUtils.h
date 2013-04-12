@@ -438,7 +438,8 @@ namespace par {
      int bucketData(std::vector<T> &in, std::vector<T> splitters, std::vector<T>& out, MPI_Comm comm);
 		
 	 template <typename T>
-     int bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, char* filename, MPI_Comm comm);
+	   std::vector<int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
+					       const char* filename, MPI_Comm comm);
 
   /**
     @brief A parallel hyper quick sort implementation.

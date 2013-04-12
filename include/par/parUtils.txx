@@ -1,3 +1,4 @@
+// -*-c++-*-
 
 /**
   @file parUtils.txx
@@ -4027,8 +4028,9 @@ namespace par {
         return 0;
       }
 
-    template <typename T>
-      int bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, char* filename, MPI_Comm comm) {
+  template <typename T>
+  std::vector<int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
+				      const char* filename, MPI_Comm comm) {
         int npes, myrank;
         MPI_Comm_size(comm, &npes);
         MPI_Comm_rank(comm, &myrank);
@@ -4037,6 +4039,7 @@ namespace par {
         omp_par::merge_sort(&in[0], &in[in.size()]);
         
         unsigned int k = splitters.size();
+	std::vector<int> writeCounts(k,0);
        
         // locally bin the data.
         std::vector<int> bucket_size(k), bucket_disp(k+1); 
@@ -4055,16 +4058,20 @@ namespace par {
           char fname[1024];
           sprintf(fname, "%s_%03d.dat", filename, i);
           FILE* fp = fopen(fname, "wb");
-          fwrite(&in[0], sizeof(T), in.size(), fp);
 
+          fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
           fclose(fp);
+
+	  writeCounts[i] = bucket.size();
+
           // update
           bucket.clear();
           // bucket_prev = bucket_disp;  (ks 4/11/13 - var not used)
         }
 
 
-        return 0;
+        //return 0;
+	return(writeCounts);
      }
 
 

@@ -25,6 +25,14 @@ public:
     memcpy(value, other.value, 90);
   }
 
+  // ks (4/11/13) - add ctor from raw 100-byte buffer
+
+  sortRecord(unsigned char *buffer)
+    {
+      memcpy(key,  &buffer[0], 10);
+      memcpy(value,&buffer[10],90);
+    }
+
   sortRecord& operator = ( const sortRecord &other) {
     if (this != &other) // protect against invalid self-assignment
     {
@@ -55,6 +63,18 @@ public:
     *sp = rand()%(1<<16);
     
     return r;
+  }
+
+  // ks (4/11/13) - additional convenience function to generate
+  // sortRecord from raw data
+
+  static sortRecord fromBuffer(const unsigned char *buffer)
+  {
+    sortRecord record;
+    memcpy(record.key,  &buffer[0] ,10);
+    memcpy(record.value,&buffer[10],90);
+
+    return(record);
   }
 
   // TODO : optimize using SIMD
