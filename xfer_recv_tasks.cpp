@@ -96,7 +96,7 @@ void sortio_Class::beginRecvTransferProcess()
 	  const int usleepInterval = 100;
 
 	  if(syncFlags[0] != 0)
-	    for(int i=1;i<=100000;i++)
+	    for(int i=1;i<=10000000;i++)
 	      {
 		usleep(usleepInterval);
 		if(syncFlags[0] == 0)
@@ -143,14 +143,14 @@ void sortio_Class::beginRecvTransferProcess()
       dataTransferred_ += messageSize;
     }
 
+  gt.EndTimer("XFER/Recv");
+
   // receive final handshake from sort task ( to guarantee SHM buffers stay in scope)
 
   handshake = -1;
   MPI_Status status;
   MPI_Recv(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM,&status);
   assert(handshake == 2);
-
-  gt.EndTimer("XFER/Recv");
 
   if(xferRank_ == numIoTasks_)
     {

@@ -61,7 +61,8 @@ void sortio_Class::Summarize()
   MPI_Barrier(GLOB_COMM);
   fflush(NULL);
 
-  gt.Finalize();
+  if(!isSortTask_)
+    gt.Finalize();
 
   if(master)
     printf("\n[sortio] --- Local Read Performance----------- \n");
@@ -170,6 +171,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       int provided;
 
       MPI_Init_thread(NULL,NULL,MPI_THREAD_FUNNELED,&provided);
+      //MPI_Init_thread(NULL,NULL,MPI_THREAD_MULTIPLE,&provided);
       mpi_initialized_by_sortio = true;
     }
 
@@ -375,13 +377,14 @@ void sortio_Class::SplitComm()
 	assert( (int)(*it).second.size() == numTasksPerHost);
 
       numSortTasksPerHost_ = numTasksPerHost - 1; // 1 task belongs to XFER_COMM
+      //numSortHosts_        = uniq_hosts.size()-numIoHosts_;
 
       // Create desired MPI sub communicators based on runtime settings
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Total number of hosts available = %4i\n",uniq_hosts.size());
       grvy_printf(INFO,"[sortio] --> Number of   IO hosts        = %4i\n",numIoHosts_);
-      grvy_printf(INFO,"[sortio] --> Number of SORT hosts        = %4i\n",uniq_hosts.size()-numIoHosts_);
+      grvy_printf(INFO,"[sortio] --> Number of SORT hosts        = %4i\n",numSortHosts_);
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Work Task Division:\n");
       grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks    = %4i\n",numIoTasks_);
