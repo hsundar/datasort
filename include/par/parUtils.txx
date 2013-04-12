@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstring>
 #include "dendro.h"
+#include <fcntl.h>
 
 #ifdef _PROFILE_SORT
   #include "sort_profiler.h"
@@ -4040,6 +4041,11 @@ namespace par {
         return 0;
       }
 
+
+  //#define USE_ORIG_BUCKET_FUNC
+
+#ifdef USE_ORIG_BUCKET_FUNC
+
   template <typename T>
   std::vector<int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
 				      const char* filename, MPI_Comm comm) {
@@ -4085,6 +4091,75 @@ namespace par {
         //return 0;
 	return(writeCounts);
      }
+
+#else
+
+    template <typename T>
+    std::vector <int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
+					    const char* filename, MPI_Comm comm) {
+        int npes, myrank;
+        MPI_Comm_size(comm, &npes);
+        MPI_Comm_rank(comm, &myrank);
+      
+        // easier if data is locally sorted ...
+        omp_par::merge_sort(&in[0], &in[in.size()]);
+        
+        unsigned int k = splitters.size();
+	std::vector<int> writeCounts(k+1,0);
+       
+        // locally bin the data.
+        std::vector<int> bucket_size(k+1), bucket_disp(k+2); 
+        bucket_disp[0]=0; bucket_disp[k+1] = in.size();
+
+        for(int i=0; i<k; i++) bucket_disp[i+1] = std::lower_bound(&in[0], &in[in.size()], splitters[i]) - &in[0];
+        //for(int i=1; i<k; i++) bucket_disp[i] = std::lower_bound(&in[0], &in[in.size()], splitters[i]) - &in[0];
+        for(int i=0; i<k+1; i++) {
+          bucket_size[i] = bucket_disp[i+1] - bucket_disp[i];
+          // std::cout << myrank << " " << i << " " << bucket_size[i] << std::endl;
+        }
+
+#define USE_FWRITE
+
+#ifdef USE_FWRITE
+        FILE* fp;
+#else
+        int fd;
+#endif
+        char fname[1024];
+        for (int i=0; i<k+1; i++) {
+          // load balance bucket i
+          std::vector<T> bucket(bucket_size[i]);
+          std::copy(&in[bucket_disp[i]], &in[bucket_disp[i+1]], bucket.begin() );
+          par::partitionW<T>(bucket, NULL, comm);
+
+	  writeCounts[i] = bucket.size();
+
+          // write out ?
+          //sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
+          sprintf(fname, "%s_%03d.dat", filename, i);
+#ifdef USE_FWRITE          
+          fp = fopen(fname, "wb");
+          fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
+          fclose(fp);
+#else
+          fd = open(fname, O_WRONLY | O_CREAT, S_IWUSR);
+          if (fd == -1) {
+            perror("File cannot be opened");
+	    exit(1);
+
+          }
+          write(fd, &bucket[0], sizeof(T)*bucket.size() );
+          close (fd);
+#endif
+          // update
+          bucket.clear();
+        }
+
+	return(writeCounts);
+     }
+
+
+#endif
 
 
 }//end namespace
