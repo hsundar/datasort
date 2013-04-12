@@ -150,7 +150,7 @@ void sortio_Class::manageSortProcess()
 	      gt.EndTimer("Local Sort");
 		
 	      gt.BeginTimer("Global Binning");
-	      sortBins = par::Sorted_approx_Select(sortBuffer,numBins,SORT_COMM);
+	      sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,SORT_COMM);
 	      gt.EndTimer("Global Binning");
 
 	      needBinning = false;
@@ -179,7 +179,7 @@ void sortio_Class::manageSortProcess()
 	  std::vector<int> writeCounts = par::bucketDataAndWrite(sortBuffer,sortBins,tmpFilename,SORT_COMM);
 	  gt.EndTimer("Bucket and Write");	    
 
-	  assert(writeCounts.size() == (numBins+1) );
+	  assert(writeCounts.size() == numBins );
 	  tmpWriteSizes.push_back(writeCounts);
 
 	  sortBuffer.clear();
@@ -234,6 +234,9 @@ void sortio_Class::manageSortProcess()
 	      
 	      sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,sortRank_,ibin);
 	      FILE *fp = fopen(tmpFilename,"rb");
+	      if(fp == NULL)
+		grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Unable to access file %s\n",sortRank_,tmpFilename);
+
 	      assert(fp != NULL);
 	      
 	      fread(&binnedData[startIndex],sizeof(sortRecord),numLocal,fp);
