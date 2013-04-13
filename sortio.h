@@ -86,6 +86,7 @@ class sortio_Class {
   int  numFilesTotal_;		         // total # of input files to sort
   int  numIoHosts_;		         // total # of desired unique IO hosts
   int  numSortHosts_;			 // total # of detected sort hosts;
+  int  numSortGroups_;			 // number of sort groups
   int  verifyMode_;			 // verification mode (1=input data)
   int  sortMode_;                        // sort mode (0=disable)
 
@@ -138,12 +139,19 @@ class sortio_Class {
 
   bool     isSortTask_;                 // MPI rank is a sort task?
   bool     isMasterSort_;		// master SORT task?
+
   bool     isLocalSortMaster_;		// master sort task on this host? (used for IPC)
   int      numSortTasks_;	        // number of dedicated sort tasks
-  int      numSortTasksPerHost_;	// numer of sort tasks per host
   int      sortRank_;		        // MPI rank of local sort task
   int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
+
+  // Binning tasks overlap with SORT
+
+  std::vector<bool> isBinTask_;		// MPI rank is a binning task
+  std::vector<int> binRanks_;		// MPI rank of local binning task
+  std::vector<int> localMasterBinRank_; // local master rank in binCOMMs_
+  std::vector<MPI_Comm>  BIN_COMMS_;    // multiple binning communicators
   
 };
 

@@ -213,6 +213,8 @@ void sortio_Class::manageSortProcess()
 
       // Re-read binned data to complete final sort
 
+#if 0
+
       for(int ibin=0;ibin<numBins;ibin++)
 	{
 	  if(isMasterSort_)
@@ -249,8 +251,11 @@ void sortio_Class::manageSortProcess()
 
 	  std::vector<sortRecord> out;
 
+
+
+	  omp_set_num_threads(1);
+
 	  gt.BeginTimer("Final Sort");
-#if 1
 	  //par::HyperQuickSort(binnedData, out, SORT_COMM);
           par::HyperQuickSort_kway(binnedData, out, SORT_COMM);
 	  gt.EndTimer("Final Sort");
@@ -268,8 +273,9 @@ void sortio_Class::manageSortProcess()
 	  fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
 	  fclose(fp);
 	  gt.EndTimer("Final Write");	  
-#endif
+
 	}
+#endif
 
     }
 

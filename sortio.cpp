@@ -200,6 +200,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/max_messages_watermark", 10);
       iparse.Register_Var("sortio/verify_mode",             0);
       iparse.Register_Var("sortio/sort_mode",               1);
+      iparse.Register_Var("sortio/num_sort_groups",         1);
 
       if(!overrideNumIOHosts_)
 	assert( iparse.Read_Var("sortio/num_io_hosts",        &numIoHosts_)           != 0 );
@@ -207,16 +208,17 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/input_dir",             &inputDir_)              != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
+      assert( iparse.Read_Var("sortio/num_sort_groups",       &numSortGroups_        ) != 0 );
       assert( iparse.Read_Var("sortio/max_read_buffers",      &MAX_READ_BUFFERS)       != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs"  ,&MAX_FILE_SIZE_IN_MBS)   != 0 );
       assert( iparse.Read_Var("sortio/max_messages_watermark",&MAX_MESSAGES_WATERMARK) != 0 );
 
-
       // Simple sanity checks
 
-      assert( numIoHosts_         > 0);
+      assert( numIoHosts_          > 0);
       assert( MAX_READ_BUFFERS     > 0);
       assert( MAX_FILE_SIZE_IN_MBS > 0);
+      assert( (numSortGroups_ > 0) && (numSortGroups_ < 16) );    // Assume 16-way hosts or less
       assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
 
@@ -226,6 +228,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] --> Input directory               = %s\n",inputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
+
     }
 
   // Broadcast necessary runtime controls to all tasks
@@ -237,6 +240,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   assert( MPI_Bcast(&numFilesTotal_,        1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numIoHosts_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numSortGroups_,        1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&verifyMode_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&sortMode_,             1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_READ_BUFFERS,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
@@ -263,8 +267,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 }
 
 // --------------------------------------------------------------------
-// SplitComm(): take input communicator and split into three groups
-// based on runtime settings:
+// SplitComm(): take input communicator and split into three types of
+// groups based on runtime settings:
 // 
 // (1) Read Data Group     (  IO_COMM  )
 // (2) Data Transfer Group ( XFER_COMM )
@@ -295,8 +299,14 @@ void sortio_Class::SplitComm()
 
   std::vector<int>      io_comm_ranks; 
   std::vector<int>    xfer_comm_ranks;
+
   std::vector<int>    sort_comm_ranks;
   std::vector<int>    first_sort_rank;
+
+  //std::vector< std::vector<int> > binCommRanks(numSortGroups_);
+  //  std::vector< std::vector<int> > binCommRanks(numSortGroups_);
+  std::vector< std::vector<int> > binCommRanks;
+
 
   std::map<std::string,std::vector<int> > uniq_hosts; // hostname -> global MPI rank mapping
 
@@ -323,6 +333,15 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Rank per host detection:\n");
 
+      //std::vector< std::vector<int> > binCommFirstRank(numSortGroups_);
+      //std::vector< std::vector<int> > binCommRanks(numSortGroups_);
+
+      for(int i=0;i<numSortGroups_;i++)
+	{
+	  std::vector <int> iVec;
+	  binCommRanks.push_back(iVec);
+	}
+
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
 	  // Logic: we use the first num_io_hosts for IO (and we
@@ -346,6 +365,26 @@ void sortio_Class::SplitComm()
 		    first_sort_rank.push_back((*it).second[proc]);
 		  sort_comm_ranks.push_back((*it).second[proc]);
 		}
+
+	      // Also build up multiple binning communicators
+
+
+	      //binCommRanks.push_back(std::vector<int> iVec);
+
+	      assert( (*it).second.size() >= (numSortGroups_ + 1) );
+#if 1
+	      //	      std::vector<int> localBins;
+
+	      for(int i=0;i<numSortGroups_;i++)
+		{
+		  //localBins.push_back( 42 );
+		  //localBins.push_back( (*it).second[i+1] );
+		  binCommRanks[i].push_back( (*it).second[i+1] );
+		}
+
+	      //	      binCommRanks.push_back(localBins);
+#endif
+
 	    }
 	    
 	  grvy_printf(INFO,"[sortio]    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
@@ -355,7 +394,8 @@ void sortio_Class::SplitComm()
       numIoTasks_     = io_comm_ranks.size();
       numXferTasks_   = xfer_comm_ranks.size();
       numSortTasks_   = sort_comm_ranks.size();
-      numSortHosts_ = first_sort_rank.size();
+      numSortHosts_   = first_sort_rank.size();
+      //      numSortHosts_   = binCommRanks.size();
 
       // quick sanity checks and assumptions
 
@@ -369,27 +409,27 @@ void sortio_Class::SplitComm()
 
       assert(numXferTasks_ + numSortTasks_ <= numTasks_);
 
-
-      // we assume all hosts have some number of MPI tasks specified
+      // we assume all hosts have the same number of MPI tasks specified
 
       int numTasksPerHost = (*uniq_hosts.begin()).second.size();
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	assert( (int)(*it).second.size() == numTasksPerHost);
 
-      numSortTasksPerHost_ = numTasksPerHost - 1; // 1 task belongs to XFER_COMM
-      //numSortHosts_        = uniq_hosts.size()-numIoHosts_;
+      //      numSortTasksPerHost_ = numTasksPerHost - 1; // 1 task belongs to XFER_COMM
 
       // Create desired MPI sub communicators based on runtime settings
 
       grvy_printf(INFO,"[sortio]\n");
-      grvy_printf(INFO,"[sortio] Total number of hosts available = %4i\n",uniq_hosts.size());
-      grvy_printf(INFO,"[sortio] --> Number of   IO hosts        = %4i\n",numIoHosts_);
-      grvy_printf(INFO,"[sortio] --> Number of SORT hosts        = %4i\n",numSortHosts_);
+      grvy_printf(INFO,"[sortio] Total number of hosts available    = %4i\n",uniq_hosts.size());
+      grvy_printf(INFO,"[sortio] --> Number of   IO hosts           = %4i\n",numIoHosts_);
+      grvy_printf(INFO,"[sortio] --> Number of SORT hosts           = %4i\n",numSortHosts_);
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Work Task Division:\n");
-      grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks    = %4i\n",numIoTasks_);
-      grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks    = %4i\n",numXferTasks_);
-      grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks    = %4i\n",numSortTasks_);
+      grvy_printf(INFO,"[sortio] --> Number of IO   MPI tasks       = %4i\n",numIoTasks_);
+      grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks       = %4i\n",numXferTasks_);
+      grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks       = %4i\n",numSortTasks_);
+      grvy_printf(INFO,"[sortio] --> Number of BIN  groups          = %4i\n",numSortGroups_);
+      grvy_printf(INFO,"[sortio]     --> Number MPI tasks per group = %4i\n",numSortTasks_/numSortGroups_);
 
     }
 
@@ -399,14 +439,27 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(&numXferTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortHosts_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
-  assert( MPI_Bcast(&numSortTasksPerHost_, 1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
+  //assert( MPI_Bcast(&numSortTasksPerHost_, 1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
+
+  assert(numSortHosts_ > 0);
 
   if(!master)
     {
-      io_comm_ranks.reserve  ( numIoTasks_ );
-      xfer_comm_ranks.reserve(numXferTasks_);
-      sort_comm_ranks.reserve(numSortTasks_);
-      first_sort_rank.reserve(numSortHosts_);
+      io_comm_ranks.reserve  (numIoTasks_   );
+      xfer_comm_ranks.reserve(numXferTasks_ );
+      sort_comm_ranks.reserve(numSortTasks_ );
+      first_sort_rank.reserve(numSortHosts_ );
+
+      //      binCommRanks.reserve   (numSortGroups_);
+
+#if 1
+      for(int i=0;i<numSortGroups_;i++)
+	{
+	  std::vector<int> iVec(numSortHosts_);
+	  binCommRanks.push_back(iVec);
+	}
+#endif
+
     }
 
   assert( MPI_Bcast(  io_comm_ranks.data(),numIoTasks_,  MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
@@ -414,26 +467,49 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(sort_comm_ranks.data(),numSortTasks_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(first_sort_rank.data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
 
+  assert(binCommRanks.size() == numSortGroups_);
+
+  for(int i=0;i<numSortGroups_;i++)
+    assert(binCommRanks[i].size() == numSortHosts_);
+
+#if 1
+  for(int i=0;i<numSortGroups_;i++)
+    assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
+#endif
+
   MPI_Group group_global;
   MPI_Group group_io;
   MPI_Group group_xfer;
   MPI_Group group_sort;
+  std::vector<MPI_Group> groups_binning(numSortGroups_);
 
   assert( MPI_Comm_group(GLOB_COMM,&group_global)  == MPI_SUCCESS );
 
-  // New groups for IO, XFER, SORT, and special Scatter group (1 per IO host)
+  // New groups/communicators for IO, XFER, SORT, and BIN(s)
 
   assert( MPI_Group_incl(group_global,   numIoTasks_,   io_comm_ranks.data(),   &group_io) == MPI_SUCCESS);
   assert( MPI_Group_incl(group_global, numXferTasks_, xfer_comm_ranks.data(), &group_xfer) == MPI_SUCCESS);
   assert( MPI_Group_incl(group_global, numSortTasks_, sort_comm_ranks.data(), &group_sort) == MPI_SUCCESS);
 
+  for(int i=0;i<numSortGroups_;i++)
+    assert( MPI_Group_incl(group_global, numSortHosts_, binCommRanks[i].data(), &groups_binning[i]) == MPI_SUCCESS);
+
+
   assert( MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_sort, &SORT_COMM) == MPI_SUCCESS);
 
+  BIN_COMMS_.reserve(numSortGroups_);
+
+  for(int i=0;i<numSortGroups_;i++)
+    assert( MPI_Comm_create(GLOB_COMM, groups_binning[i], &BIN_COMMS_[i]) == MPI_SUCCESS);
+
+
   // is the local rank part of the new groups?
 
   int rank_tmp;
+
+  isBinTask_.resize(numSortGroups_,false);
 
   assert( MPI_Group_rank( group_io, &rank_tmp) == MPI_SUCCESS);
   if(rank_tmp != MPI_UNDEFINED)
@@ -446,6 +522,13 @@ void sortio_Class::SplitComm()
   assert( MPI_Group_rank( group_sort, &rank_tmp) == MPI_SUCCESS);
   if(rank_tmp != MPI_UNDEFINED)
       isSortTask_ = true;
+
+  for(int i=0;i<numSortGroups_;i++)
+    {
+      assert( MPI_Group_rank( groups_binning[i], &rank_tmp) == MPI_SUCCESS);
+      if(rank_tmp != MPI_UNDEFINED)
+	isBinTask_[i] = true;
+    }
 
   MPI_Barrier(GLOB_COMM);
 
@@ -469,8 +552,6 @@ void sortio_Class::SplitComm()
       // On receiving XFER tasks, identify global rank of first sort
       // task that also resides on this host (for IPC communication)
 
-      //grvy_printf(INFO,"[sortio]\n");
-
       if(xferRank_ >= numIoHosts_)
 	{
 	  int index = xferRank_-numIoHosts_;   
@@ -480,6 +561,7 @@ void sortio_Class::SplitComm()
 	}
       
     }
+
   if(isSortTask_)
     {
       assert( MPI_Comm_rank(SORT_COMM,&sortRank_) == MPI_SUCCESS);
@@ -502,6 +584,13 @@ void sortio_Class::SplitComm()
 			  sortRank_,localXferRank_);
 	    }
 	}
+
+      // cache local binning ranks
+      binRanks_.resize(numSortGroups_,-1);
+
+      for(int i=0;i<numSortGroups_;i++)
+	if(isBinTask_[i])
+	  assert( MPI_Comm_rank(BIN_COMMS_[i],&binRanks_[i]) == MPI_SUCCESS);
     }
 
   MPI_Barrier(GLOB_COMM);
@@ -513,38 +602,55 @@ void sortio_Class::SplitComm()
     {
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] MPI WorkGroup Summary (%i hosts, %i MPI tasks)\n",uniq_hosts.size(),numTasks_);
+
+      grvy_printf(INFO,"[sortio] --> Communicator Ranking Demarcation\n");
       grvy_printf(INFO,"[sortio]\n");
-      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
-      grvy_printf(INFO,"[sortio] [Hostname]  [Global Rank]  [IO Rank]  [XFER Rank]  [SORT Rank] \n");
-      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
+      grvy_printf(INFO,"[sortio] ----------------------------------------------------");
+      for(int i=2;i<=numSortGroups_;i++)
+	grvy_printf(INFO,"--------");
+      grvy_printf(INFO,"\n");
+
+      grvy_printf(INFO,"[sortio] [Hostname]  [Global]  [ IO ]  [XFER]  [SORT]  [BIN1]");
+      for(int i=2;i<=numSortGroups_;i++)
+	grvy_printf(INFO,"  [BIN%i]",i);
+      grvy_printf(INFO,"\n");
+
+      grvy_printf(INFO,"[sortio] ----------------------------------------------------");
+      for(int i=2;i<=numSortGroups_;i++)
+	grvy_printf(INFO,"--------");
+      grvy_printf(INFO,"\n");
     }
 
-  int ranks_tmp[3];
+
+  const int numColumns = 3 + numSortGroups_;
+  int *ranks_tmp;
+
+  ranks_tmp = new int[numColumns];
   MPI_Status status;
 
   for(int proc=0;proc<numTasks_;proc++)
     {
       if(master)
 	{
-	  grvy_printf(INFO,"[sortio]  %.8s       %.6i ",&hostnames_ALL[proc*MPI_MAX_PROCESSOR_NAME],proc);
+	  grvy_printf(INFO,"[sortio]  %.8s    %.6i ",&hostnames_ALL[proc*MPI_MAX_PROCESSOR_NAME],proc);
 	}
 
       if(master && (proc == 0) )
 	{
 	  if(isIOTask_)
-	    printf("      %.6i",ioRank_);
+	    printf("  %.6i",ioRank_);
 	  else
-	    printf("      ------");
+	    printf("  ------");
 
 	  if(isXFERTask_)
-	    printf("      %.6i",xferRank_);
+	    printf("  %.6i",xferRank_);
 	  else
-	    printf("      ------");
+	    printf("  ------");
 
 	  if(isSortTask_)
-	    printf("      %.6i\n",sortRank_);
+	    printf("  %.6i\n",sortRank_);
 	  else
-	    printf("      ------\n");
+	    printf("  ------\n");
 
 	  continue;
 	}
@@ -554,31 +660,54 @@ void sortio_Class::SplitComm()
 	  ranks_tmp[0] = (  isIOTask_ ) ?   ioRank_ : -1 ;
 	  ranks_tmp[1] = (isXFERTask_ ) ? xferRank_ : -1 ;
 	  ranks_tmp[2] = (isSortTask_ ) ? sortRank_ : -1 ;
-	  assert (MPI_Send(ranks_tmp,3,MPI_INT,0,1000,GLOB_COMM) == MPI_SUCCESS) ;
+
+	  for(int i=0;i<numSortGroups_;i++)
+	    ranks_tmp[i+3] = (isBinTask_[i] ) ? binRanks_[i] : -1 ;
+
+	  assert (MPI_Send(ranks_tmp,numColumns,MPI_INT,0,100,GLOB_COMM) == MPI_SUCCESS) ;
 	}
       
       if(master)
 	{
-	  assert (MPI_Recv(ranks_tmp,3,MPI_INT,proc,1000,GLOB_COMM,&status) == MPI_SUCCESS) ;
+	  assert (MPI_Recv(ranks_tmp,numColumns,MPI_INT,proc,100,GLOB_COMM,&status) == MPI_SUCCESS) ;
 
 	  for(int i=0;i<3;i++)
 	    {
 	      if(ranks_tmp[i] >= 0)
-		printf("      %.6i",ranks_tmp[i]);
+		printf("  %.6i",ranks_tmp[i]);
 	      else
-		printf("      ------");
+		printf("  ------");
+	    }
+
+	  // now show binning groups
+
+	  for(int i=0;i<numSortGroups_;i++)
+	    {
+	      if(ranks_tmp[i+3] >= 0)
+		printf("  %.6i",ranks_tmp[i+3]);
+	      else
+		printf("  ------");
 	    }
 	  grvy_printf(INFO,"\n");
 	}
     }
 
+  delete [] ranks_tmp;
+
+
   if(master)
     {
-      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
-      grvy_printf(INFO,"[sortio] --------------------------------------------------------------\n");
+      for(int i=0;i<2;i++)
+	{
+	  grvy_printf(INFO,"[sortio] ----------------------------------------------------");
+	  for(int i=2;i<=numSortGroups_;i++)
+	    grvy_printf(INFO,"--------");
+	  grvy_printf(INFO,"\n");
+	}
     }
-  
-  free(hostnames_ALL);  
+
+  if(master)
+    free(hostnames_ALL);  
   return;
 }
 
