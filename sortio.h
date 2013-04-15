@@ -74,6 +74,8 @@ class sortio_Class {
   int  CycleDestRank();
   void checkForSendCompletion(bool waitFlag, int waterMark, int iter);
   void addBuffertoEmptyQueue (int bufNum);
+  void cycleBinGroup         (int numFilesTotal,int currentGroup);
+  int  waitForActivation();
 
  private:
   bool master;			         // master MPI rank?
@@ -146,12 +148,15 @@ class sortio_Class {
   int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
 
-  // Binning tasks overlap with SORT
+  // Binning tasks which overlap with SORT
 
   std::vector<bool> isBinTask_;		// MPI rank is a binning task
   std::vector<int> binRanks_;		// MPI rank of local binning task
   std::vector<int> localMasterBinRank_; // local master rank in binCOMMs_
   std::vector<MPI_Comm>  BIN_COMMS_;    // multiple binning communicators
+  int binRingRank_;		        // global rank for neighboring ring task
+  int activeBin_;			// currently active BIN comm
+  int binNum_;				// BIN number for local rank
   
 };
 

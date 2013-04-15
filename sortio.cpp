@@ -28,6 +28,8 @@ sortio_Class::sortio_Class()
   numRecordsRead_           = 0;
   verifyMode_               = 0;
   sortMode_                 = 0;
+  activeBin_                = 0;
+  binNum_                   = -1;
   localSortRank_            = -1;
   localXferRank_            = -1;
   fileBaseName_             = "part";
@@ -218,7 +220,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( numIoHosts_          > 0);
       assert( MAX_READ_BUFFERS     > 0);
       assert( MAX_FILE_SIZE_IN_MBS > 0);
-      assert( (numSortGroups_ > 0) && (numSortGroups_ < 16) );    // Assume 16-way hosts or less
+      assert( (numSortGroups_ >= 2) && (numSortGroups_ < 16) );   // Assume 16-way hosts or less (need 2 minimum)
       assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
 
@@ -303,8 +305,6 @@ void sortio_Class::SplitComm()
   std::vector<int>    sort_comm_ranks;
   std::vector<int>    first_sort_rank;
 
-  //std::vector< std::vector<int> > binCommRanks(numSortGroups_);
-  //  std::vector< std::vector<int> > binCommRanks(numSortGroups_);
   std::vector< std::vector<int> > binCommRanks;
 
 
@@ -332,9 +332,6 @@ void sortio_Class::SplitComm()
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Rank per host detection:\n");
-
-      //std::vector< std::vector<int> > binCommFirstRank(numSortGroups_);
-      //std::vector< std::vector<int> > binCommRanks(numSortGroups_);
 
       for(int i=0;i<numSortGroups_;i++)
 	{
@@ -372,18 +369,9 @@ void sortio_Class::SplitComm()
 	      //binCommRanks.push_back(std::vector<int> iVec);
 
 	      assert( (*it).second.size() >= (numSortGroups_ + 1) );
-#if 1
-	      //	      std::vector<int> localBins;
 
 	      for(int i=0;i<numSortGroups_;i++)
-		{
-		  //localBins.push_back( 42 );
-		  //localBins.push_back( (*it).second[i+1] );
-		  binCommRanks[i].push_back( (*it).second[i+1] );
-		}
-
-	      //	      binCommRanks.push_back(localBins);
-#endif
+		binCommRanks[i].push_back( (*it).second[i+1] );
 
 	    }
 	    
@@ -395,7 +383,6 @@ void sortio_Class::SplitComm()
       numXferTasks_   = xfer_comm_ranks.size();
       numSortTasks_   = sort_comm_ranks.size();
       numSortHosts_   = first_sort_rank.size();
-      //      numSortHosts_   = binCommRanks.size();
 
       // quick sanity checks and assumptions
 
@@ -429,7 +416,7 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks       = %4i\n",numXferTasks_);
       grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks       = %4i\n",numSortTasks_);
       grvy_printf(INFO,"[sortio] --> Number of BIN  groups          = %4i\n",numSortGroups_);
-      grvy_printf(INFO,"[sortio]     --> Number MPI tasks per group = %4i\n",numSortTasks_/numSortGroups_);
+      //      grvy_printf(INFO,"[sortio]     --> Number MPI tasks per group = %4i\n",numSortHosts_);
 
     }
 
@@ -449,8 +436,6 @@ void sortio_Class::SplitComm()
       xfer_comm_ranks.reserve(numXferTasks_ );
       sort_comm_ranks.reserve(numSortTasks_ );
       first_sort_rank.reserve(numSortHosts_ );
-
-      //      binCommRanks.reserve   (numSortGroups_);
 
 #if 1
       for(int i=0;i<numSortGroups_;i++)
@@ -476,6 +461,8 @@ void sortio_Class::SplitComm()
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
 #endif
+
+
 
   MPI_Group group_global;
   MPI_Group group_io;
@@ -504,7 +491,6 @@ void sortio_Class::SplitComm()
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Comm_create(GLOB_COMM, groups_binning[i], &BIN_COMMS_[i]) == MPI_SUCCESS);
 
-
   // is the local rank part of the new groups?
 
   int rank_tmp;
@@ -527,7 +513,10 @@ void sortio_Class::SplitComm()
     {
       assert( MPI_Group_rank( groups_binning[i], &rank_tmp) == MPI_SUCCESS);
       if(rank_tmp != MPI_UNDEFINED)
-	isBinTask_[i] = true;
+	{
+	  isBinTask_[i] = true;
+	  binNum_       = i;
+	}
     }
 
   MPI_Barrier(GLOB_COMM);
@@ -586,6 +575,7 @@ void sortio_Class::SplitComm()
 	}
 
       // cache local binning ranks
+
       binRanks_.resize(numSortGroups_,-1);
 
       for(int i=0;i<numSortGroups_;i++)
@@ -705,6 +695,8 @@ void sortio_Class::SplitComm()
 	  grvy_printf(INFO,"\n");
 	}
     }
+
+  MPI_Barrier(GLOB_COMM);
 
   if(master)
     free(hostnames_ALL);  

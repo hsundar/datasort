@@ -71,7 +71,8 @@ void sortio_Class::manageSortProcess()
   const int numBins             = 10;  
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   //  const size_t binningWaterMark = 2*numRecordsPerXfer;
-  const size_t binningWaterMark = numRecordsPerXfer*numSortHosts_;
+  //const size_t binningWaterMark = numRecordsPerXfer*numSortHosts_;
+  const size_t binningWaterMark = 1*numSortHosts_;
 
   char tmpFilename[1024];	     // location for tmp file
   std::vector<sortRecord> sortBins;  // binning buckets
@@ -91,26 +92,28 @@ void sortio_Class::manageSortProcess()
   int count            = 0;
   int outputCount      = 0;
   int numFilesReceived = 0;
+  int activeBin        = 0;	// currently active binning communicator
 
-  grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] Beginning main processing loop \n",sortRank_);
+  if(isMasterSort_)
+    grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] Beginning main processing loop \n",sortRank_);
 
   MPI_Barrier(SORT_COMM);
 
-  while(numFilesReceived < numFilesTotal_)
-    {
-      // process any new data via IPC, syncFlags is used for synchronization (0=empty,1=full)
+  // Perform initial binning to determine bucket thresholds (this is only done
+  // once and occurs only on first BIN group)
 
-      int localDataAvail  = 0;
-      int globalDataAvail = 0;
+  if(isBinTask_[0])
+    while(true)
+      {
+	int localData  = 0;
+	int globalData = 0;
 
-      // check for any data available
-
-      if(isLocalSortMaster_)
-	if(syncFlags[0] == 1)
+	if(syncFlags[0] == 1)	// indicates data available
 	  {
 	    
 	    if(sortMode_ > 0)
 	      {
+		grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] found data to copy\n",sortRank_);
 		gt.BeginTimer("Sort/Copy");
 		for(int i=0;i<numRecordsPerXfer;i++)
 		  sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
@@ -119,25 +122,239 @@ void sortio_Class::manageSortProcess()
 
 	    grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] re-enabling buffer (iter =%i)\n",sortRank_,count);
 
-	    localDataAvail = 1;
-	    syncFlags[0]   = 0;
+	    localData    = 1;
+	    syncFlags[0] = 0;
+	
+	    assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
+	
+	    numFilesReceived += globalData;
+
+	    int numRecordsLocal  = sortBuffer.size();
+	    int numRecordsGlobal = 0;
+
+	    if( (globalData >= binningWaterMark) )
+	      {
+		if(sortMode_ > 0)
+		  {
+		    if(isMasterSort_)
+		      grvy_printf(INFO,"[sortio][SORT][%.4i]: Doing approximate binning (%i files)\n",
+				  sortRank_,globalData);
+
+		    gt.BeginTimer("Local Sort");
+		    omp_par::merge_sort(&sortBuffer[0],&sortBuffer[sortBuffer.size()]);
+		    gt.EndTimer("Local Sort");
+		    
+		    gt.BeginTimer("Global Binning");
+		    sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,BIN_COMMS_[0]);
+		    gt.EndTimer("Global Binning");
+		    
+		    assert(sortBins.size() == numBins - 1 );
+		    
+		    outputCount = 0; // first write
+		    
+		    sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[0]);
+		    
+		    grvy_check_file_path(tmpFilename);
+		    grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
+				sortBuffer.size());
+		    
+		    gt.BeginTimer("Bucket and Write");
+		    std::vector<int> writeCounts = par::bucketDataAndWrite(sortBuffer,sortBins,
+									   tmpFilename,BIN_COMMS_[0]);
+		    gt.EndTimer("Bucket and Write");	    
+		    
+		    assert(writeCounts.size() == numBins );
+		    tmpWriteSizes.push_back(writeCounts);
+		    
+		    sortBuffer.clear();
+		  }
+
+		break;
+	      }
 	  }
+      }
 
-      assert (MPI_Allreduce(&localDataAvail,&globalDataAvail,1,MPI_INT,MPI_SUM,SORT_COMM) == MPI_SUCCESS);
+  MPI_Barrier(SORT_COMM);
 
-      numFilesReceived += globalDataAvail;
+  if(isMasterSort_)
+    printf("[sortio][%.4i]: First bucket binning complete\n",sortRank_);
 
+  // distribute the sorting bins to all of SORT_COMM for use by all
+  // BIN groups (even though BIN1 already has this data, we resend
+  // using a bcast to SORT_COMM for convenience
+
+  if(sortMode_ > 0)
+    {
+      if(!isBinTask_[0])
+	sortBins.resize(numBins-1);
+
+      std::vector<sortRecord> binOrig;
+      if(binNum_ == 0 && binRanks_[0] == 1)
+	binOrig = sortBins;
+      
+      MPI_Datatype MPISORT_TYPE = par::Mpi_datatype<sortRecord>::value();
+
+      assert( MPI_Bcast( sortBins.data(),sortBins.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
+
+  // double check 
+
+      if(binNum_ == 0 && binRanks_[0] == 1)
+	for(size_t i=0;i<binOrig.size();i++)
+	  assert(binOrig[i] == sortBins[i]);
+    }
+
+  // Transfer ownership to next BIN group
+
+  if(isBinTask_[0])
+    cycleBinGroup(numFilesReceived,0);
+  
+  int iterCount = 0;
+  if(isBinTask_[0])
+    iterCount = 1;	// <-- Group 0 already did first write above
+
+  // Commence with binning process as new data comes in; cycle through
+  // BIN communicators to provide an asychnronous mechanism for saving
+  // the temporary data to disk (only tasks associated with a BIN
+  // group participate)
+
+  while(numFilesReceived < numFilesTotal_)
+    {
+      if(binNum_ < 0)	
+	break;
+
+      numFilesReceived = waitForActivation();
+
+      // tear-down procedure, notify remaining bin groups that we have
+      // processed all files, we send a negative count here and count
+      // down till the final group is terminated.
+
+      if(numFilesReceived == numFilesTotal_)
+	{
+	  if(numSortGroups_ >= 3)
+	    {
+	      int terminateCounter = numSortGroups_ - 2;  // we are all done when this counter = -1
+	      cycleBinGroup(-terminateCounter,binNum_);
+	    }	  
+	  break;
+	}
+      else if(numFilesReceived < -1) // we are still tearing down
+	{
+	  cycleBinGroup(numFilesReceived++,binNum_);
+	  break;
+	}
+      else if(numFilesReceived == -1) // final group reached
+	break;
+
+      int count = 0;
+      bool isActiveMaster = false;
+
+      if(binRanks_[binNum_] == 0)
+	isActiveMaster = true;
+
+      // loop until this BIN group has sufficient data available
+
+      while(true)
+	{
+	  if(isActiveMaster)
+	    grvy_printf(DEBUG,"[sortio][SORT/BIN][%.4i] Group %i looking for new data (iter = %i)\n",
+			sortRank_,binNum_,count);
+
+	  int localData  = 0;
+	  int globalData = 0;
+	  
+	  if(syncFlags[0] == 1)
+	    {
+	      if(sortMode_ > 0)
+		{
+		  gt.BeginTimer("Sort/Copy");
+		  for(int i=0;i<numRecordsPerXfer;i++)
+		    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+		  gt.EndTimer("Sort/Copy");
+		}
+	      
+	      grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] re-enabling buffer (iter =%i)\n",sortRank_,count);
+	      
+	      localData    = 1;
+	      syncFlags[0] = 0;
+
+	    }
+
+	  assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
+
+	  //grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] group %i past all reduce\n",sortRank_,binNum_);
+
+	  numFilesReceived += globalData;
+
+	  // Continue with local binning and temporary file writes (1 per host)
+
+	  int threshold = 0;
+#if 0
+	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
+	    threshold = numSortHosts_ / 2;
+#endif
+	  
+	  if( globalData > threshold )
+	    {
+
+	      // Transfer ownership to next BIN comm
+
+	      cycleBinGroup(numFilesReceived,binNum_);
+
+	      if(sortMode_ > 0)
+		{
+
+		  grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
+			      sortRank_,globalData);
+
+		  outputCount = iterCount*numSortGroups_ + binRanks_[binNum_];
+
+		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
+		  
+		  grvy_check_file_path(tmpFilename);
+		  grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
+			      sortBuffer.size());
+		  
+		  gt.BeginTimer("Bucket and Write");
+		  std::vector<int> writeCounts = par::bucketDataAndWrite(sortBuffer,sortBins,
+									 tmpFilename,BIN_COMMS_[binNum_]);
+		  gt.EndTimer("Bucket and Write");	    
+		  
+		  assert(writeCounts.size() == numBins );
+		  tmpWriteSizes.push_back(writeCounts);
+	      
+		  sortBuffer.clear();
+		}
+	    }
+
+	  if(globalData > threshold)
+	    break;
+
+	  count++;
+	} // end while(true);
+
+      iterCount++;
+
+    } // end main loop
+
+  if(binNum_ >= 0)
+    grvy_printf(INFO,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
+
+  MPI_Barrier(SORT_COMM);
+    
+
+#if 0
       if(isMasterSort_)
 	grvy_printf(DEBUG,"[sortio][SORT][%.4i]: numFilesReceived = %i\n",sortRank_,numFilesReceived);
+#endif
 
+#if 0
       // Check if we have enough data to do initial binning
 
-      if(sortMode_ > 0 && needBinning)
+      if( (sortMode_ > 0) && needBinning && (activeBin == 0) )
 	{
 	  int numRecordsLocal  = sortBuffer.size();
 	  int numRecordsGlobal = 0;
 
-	  //assert (MPI_Allreduce(&numRecordsLocal,&numRecordsGlobal,1,MPI_INT,MPI_MIN,SORT_COMM) == MPI_SUCCESS);
 	  assert (MPI_Allreduce(&numRecordsLocal,&numRecordsGlobal,1,MPI_INT,MPI_SUM,SORT_COMM) == MPI_SUCCESS);
 
 	  if(numRecordsGlobal >= binningWaterMark)
@@ -190,10 +407,14 @@ void sortio_Class::manageSortProcess()
       count++;
     }
 
-  MPI_Barrier(SORT_COMM);
+#endif
+
+MPI_Barrier(SORT_COMM);
+
 
   // Tally up all the binned records written
 
+#if 0
   if(sortMode_ > 0)
     {
       assert(tmpWriteSizes.size() == outputCount);
@@ -278,8 +499,11 @@ void sortio_Class::manageSortProcess()
 #endif
 
     }
+#endif
 
-  // wasn't that easy?
+  // now, wasn't that easy? big data shoplifters of the world
+  // unite. send notification to companion IPC tasks that we are all
+  // done
 
   MPI_Barrier(SORT_COMM);
 
@@ -300,4 +524,66 @@ void sortio_Class::manageSortProcess()
   fflush(NULL);
 
   return;
+}
+
+// --------------------------------------------------------------------
+// Send notification message to proceses in next Bin COMM indicating it
+// is their turn to do some work
+// --------------------------------------------------------------------
+
+void sortio_Class::cycleBinGroup(int numFilesTotal,int currentGroup)
+{
+  int destRank = sortRank_ + 1;
+  static int localIter = 0;
+
+  if(currentGroup == numSortGroups_ - 1)
+    destRank = sortRank_ - (numSortGroups_ - 1);
+
+  // circular ring for group participation
+
+  int nextGroup = currentGroup++;
+
+  if(nextGroup >= numSortGroups_)
+    nextGroup = 0;
+
+  const int tag=20;
+
+  grvy_printf(INFO,"[sortio][Bin/Cycle] Rank %i (group %i) is activating rank %i (%i)\n",
+	      sortRank_,binNum_,destRank,localIter );
+
+  assert (MPI_Send(&numFilesTotal,1,MPI_INT,destRank,tag+activeBin_,SORT_COMM) == MPI_SUCCESS);
+
+  localIter++;
+		   
+  return;
+}
+
+// --------------------------------------------------------------------
+// Receive notification message from previously active Bin COMM
+// indicating it is our turn to do some work
+// --------------------------------------------------------------------
+
+int sortio_Class::waitForActivation()
+{
+  int numFilesTotal;
+  const int tag=20;
+  MPI_Status status;
+
+  // circular ring
+
+  int recvRank = sortRank_ - 1;
+
+  if(binNum_ == 0)
+    recvRank = sortRank_ + (numSortGroups_ - 1);
+
+  grvy_printf(INFO,"[sortio][Bin/Wait] Rank %i (group %i) is waiting to go active from %i\n",
+	      sortRank_,binNum_,recvRank);
+
+  assert (MPI_Recv(&numFilesTotal,1,MPI_INT,recvRank,tag+activeBin_,SORT_COMM,&status) == MPI_SUCCESS);
+
+  grvy_printf(INFO,"[sortio][Bin/Wait] Rank %i (group %i) is active (numFiles = %i)\n",
+	      sortRank_,binNum_,numFilesTotal);
+  
+
+  return(numFilesTotal);
 }
