@@ -33,6 +33,8 @@
 #endif
 #endif
 
+//#define KWAY 16  // karl testing
+
 #ifndef KWAY
 		#define KWAY 8
 #endif 
@@ -3632,7 +3634,7 @@ namespace par {
     }
 
   template<typename T>
-    std::vector<T> Sorted_approx_Select(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+    std::vector<T> Sorted_approx_Select_new(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
       int rank, npes;
       MPI_Comm_size(comm, &npes);
       MPI_Comm_rank(comm, &rank);
@@ -3669,7 +3671,7 @@ namespace par {
     }
     
 	template<typename T>
-		std::vector<T> Sorted_approx_Select_old(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+		std::vector<T> Sorted_approx_Select(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
 			int rank, npes;
       MPI_Comm_size(comm, &npes);
 			MPI_Comm_rank(comm, &rank);
@@ -4118,7 +4120,7 @@ namespace par {
           // std::cout << myrank << " " << i << " " << bucket_size[i] << std::endl;
         }
 
-#define USE_FWRITE
+	//#define USE_FWRITE
 
 #ifdef USE_FWRITE
         FILE* fp;
