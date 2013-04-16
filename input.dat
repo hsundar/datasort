@@ -13,7 +13,7 @@ max_messages_watermark =  20         # max messages in flight per xfer task
 
 verify_mode            = 0
 sort_mode              = 1
-num_sort_groups        = 4
+num_sort_groups        = 8
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/140_gib

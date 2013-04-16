@@ -6,7 +6,7 @@
 #include "par/parUtils.h"
 #include "gensort/sortRecord.h"
 
-#define _PROFILE_SORT
+//#define _PROFILE_SORT
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
@@ -31,6 +31,8 @@ void sortio_Class::manageSortProcess()
   // SORT_COMM rank on this same host. Before we access, wait for a
   // handshake from the SHM creation tasks to guarantee existence
   // prior to accessing locally.
+
+  MPI_Barrier(SORT_COMM);
 
   if(isLocalSortMaster_)
     {
@@ -64,14 +66,17 @@ void sortio_Class::manageSortProcess()
   syncFlags = static_cast<int *          >(region1.get_address());
   buffer    = static_cast<unsigned char *>(region2.get_address());
 
+#if 0
+  if(syncFlags[0] != 0)
+    printf("invalid sync flag on sort rank %i (value = %i)\n",sortRank_,syncFlags[0]);
+  
   assert(syncFlags[0] == 0);
+#endif
   messageSize = syncFlags[1];	// raw buffersize passed 
 
   bool needBinning              = true;
   const int numBins             = 10;  
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
-  //  const size_t binningWaterMark = 2*numRecordsPerXfer;
-  //const size_t binningWaterMark = numRecordsPerXfer*numSortHosts_;
   const size_t binningWaterMark = 1*numSortHosts_;
 
   char tmpFilename[1024];	     // location for tmp file
@@ -146,6 +151,7 @@ void sortio_Class::manageSortProcess()
 		    
 		    gt.BeginTimer("Global Binning");
 		    sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,BIN_COMMS_[0]);
+		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numBins-1,BIN_COMMS_[0]);
 		    gt.EndTimer("Global Binning");
 		    
 		    assert(sortBins.size() == numBins - 1 );
@@ -288,7 +294,7 @@ void sortio_Class::manageSortProcess()
 	  // Continue with local binning and temporary file writes (1 per host)
 
 	  int threshold = 0;
-#if 0
+#if 1
 	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
 	    threshold = numSortHosts_ / 2;
 #endif
@@ -303,8 +309,9 @@ void sortio_Class::manageSortProcess()
 	      if(sortMode_ > 0)
 		{
 
-		  grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
-			      sortRank_,globalData);
+		  if(binRanks_[binNum_] == 0)
+		    grvy_printf(DEBUG,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
+				sortRank_,globalData);
 
 		  outputCount = iterCount*numSortGroups_ + binRanks_[binNum_];
 
@@ -337,7 +344,7 @@ void sortio_Class::manageSortProcess()
     } // end main loop
 
   if(binNum_ >= 0)
-    grvy_printf(INFO,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
+    grvy_printf(DEBUG,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
 
   MPI_Barrier(SORT_COMM);
     
@@ -367,7 +374,8 @@ void sortio_Class::manageSortProcess()
 	      gt.EndTimer("Local Sort");
 		
 	      gt.BeginTimer("Global Binning");
-	      sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,SORT_COMM);
+	      //sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,SORT_COMM);
+	      sortBins = par::Sorted_approx_Select_old(sortBuffer,numBins-1,SORT_COMM);
 	      gt.EndTimer("Global Binning");
 
 	      needBinning = false;
@@ -548,7 +556,7 @@ void sortio_Class::cycleBinGroup(int numFilesTotal,int currentGroup)
 
   const int tag=20;
 
-  grvy_printf(INFO,"[sortio][Bin/Cycle] Rank %i (group %i) is activating rank %i (%i)\n",
+  grvy_printf(DEBUG,"[sortio][Bin/Cycle] Rank %i (group %i) is activating rank %i (%i)\n",
 	      sortRank_,binNum_,destRank,localIter );
 
   assert (MPI_Send(&numFilesTotal,1,MPI_INT,destRank,tag+activeBin_,SORT_COMM) == MPI_SUCCESS);
@@ -576,12 +584,12 @@ int sortio_Class::waitForActivation()
   if(binNum_ == 0)
     recvRank = sortRank_ + (numSortGroups_ - 1);
 
-  grvy_printf(INFO,"[sortio][Bin/Wait] Rank %i (group %i) is waiting to go active from %i\n",
+  grvy_printf(DEBUG,"[sortio][Bin/Wait] Rank %i (group %i) is waiting to go active from %i\n",
 	      sortRank_,binNum_,recvRank);
 
   assert (MPI_Recv(&numFilesTotal,1,MPI_INT,recvRank,tag+activeBin_,SORT_COMM,&status) == MPI_SUCCESS);
 
-  grvy_printf(INFO,"[sortio][Bin/Wait] Rank %i (group %i) is active (numFiles = %i)\n",
+  grvy_printf(DEBUG,"[sortio][Bin/Wait] Rank %i (group %i) is active (numFiles = %i)\n",
 	      sortRank_,binNum_,numFilesTotal);
   
 

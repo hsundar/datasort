@@ -307,8 +307,9 @@ void sortio_Class::SplitComm()
 
   std::vector< std::vector<int> > binCommRanks;
 
-
   std::map<std::string,std::vector<int> > uniq_hosts; // hostname -> global MPI rank mapping
+
+
 
   if(master)
     {
@@ -338,6 +339,7 @@ void sortio_Class::SplitComm()
 	  std::vector <int> iVec;
 	  binCommRanks.push_back(iVec);
 	}
+
 
       for(it = uniq_hosts.begin(); it != uniq_hosts.end(); it++ ) 
 	{
@@ -378,6 +380,7 @@ void sortio_Class::SplitComm()
 	  grvy_printf(INFO,"[sortio]    %s -> %3i MPI task(s)/host\n",(*it).first.c_str(),(*it).second.size());
 	  count++;
 	}
+
 
       numIoTasks_     = io_comm_ranks.size();
       numXferTasks_   = xfer_comm_ranks.size();
@@ -430,6 +433,8 @@ void sortio_Class::SplitComm()
 
   assert(numSortHosts_ > 0);
 
+
+
   if(!master)
     {
       io_comm_ranks.reserve  (numIoTasks_   );
@@ -461,8 +466,6 @@ void sortio_Class::SplitComm()
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
 #endif
-
-
 
   MPI_Group group_global;
   MPI_Group group_io;
@@ -679,6 +682,7 @@ void sortio_Class::SplitComm()
 		printf("  ------");
 	    }
 	  grvy_printf(INFO,"\n");
+	  fflush(NULL);
 	}
     }
 
@@ -697,6 +701,14 @@ void sortio_Class::SplitComm()
     }
 
   MPI_Barrier(GLOB_COMM);
+
+  // clean-up
+
+  assert (MPI_Group_free(&group_io  ) == MPI_SUCCESS );
+  assert (MPI_Group_free(&group_xfer) == MPI_SUCCESS );
+  assert (MPI_Group_free(&group_sort) == MPI_SUCCESS );
+  for(int i=0;i<numSortGroups_;i++)
+    assert (MPI_Group_free(&groups_binning[i]) == MPI_SUCCESS );
 
   if(master)
     free(hostnames_ALL);  
