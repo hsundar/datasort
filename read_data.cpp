@@ -198,20 +198,33 @@ void sortio_Class::ReadFiles()
 
       // read till end of file (we assume file is even multiple of REC_SIZE)
 
-      while(read_size == REC_SIZE)
+      const int MAX_RETRIES = 5;
+      int num_retries = 0;
+
+      //      if(isFirstRead_)
+      if(true)
+	while(read_size == REC_SIZE)
+	  {
+	    // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
+	    
+	    read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
+	    //read_size = fread(rec_buf,1,REC_SIZE,fp);
+
+	    if(read_size == 0)
+	      break;
+	    
+	    assert(read_size == REC_SIZE);
+	    
+	    numRecordsRead_++;
+	    records_per_file++;
+	  }
+      else
 	{
-	  // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
-
-	  read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
-	  //read_size = fread(rec_buf,1,REC_SIZE,fp);
-
-	  if(read_size == 0)
-	    break;
-
-	  assert(read_size == REC_SIZE);
-
-	  numRecordsRead_++;
-	  records_per_file++;
+	  records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
+	  grvy_printf(INFO,"[sortio][IO/Read][%.4i] read size = %zi (%i)\n",
+		    ioRank_,read_size,recordsPerFile_);
+	  //assert(read_size == recordsPerFile_);
+	  //	  records_per_file =
 	}
 
       fclose(fp);
@@ -223,7 +236,16 @@ void sortio_Class::ReadFiles()
 	}
 
       // we assume for now, that all files are equal in size
-      assert(records_per_file == recordsPerFile_);
+      if(records_per_file != recordsPerFile_)
+	{
+	  grvy_printf(ERROR,"[sortio][IO/Read][%.4i] unexpected file read encountered (%i records vs %i expected)\n",
+		      ioRank_,records_per_file,recordsPerFile_);
+	  grvy_printf(ERROR,"[sortio][IO/Read][%.4i] filename = %s, buffer num = %i\n",
+		      ioRank_,infile.c_str(),buf_num);
+	}
+
+      // hack for testing
+      //assert(records_per_file == recordsPerFile_);
 
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
       {

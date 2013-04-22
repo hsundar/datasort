@@ -93,7 +93,7 @@ void sortio_Class::beginRecvTransferProcess()
 	  // stall briefly if last data transfer to local SORT rank is
 	  // incomplete on this host
 
-	  const int usleepInterval = 100;
+	  const int usleepInterval = 1000;
 
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=10000000;i++)

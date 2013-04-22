@@ -7,12 +7,12 @@
 num_io_hosts  = 2
 num_files = 3000
 
-max_read_buffers       =  80
+max_read_buffers       = 100
 max_file_size_in_mbs   = 100
 max_messages_watermark =  20         # max messages in flight per xfer task
 
 verify_mode            = 0
-sort_mode              = 1
+sort_mode              = 0	# 0=no-sort, 1=intermediate-binning, 2=final-sort
 num_sort_groups        = 8
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/
@@ -20,6 +20,8 @@ num_sort_groups        = 8
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/557_gib
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/1392_gib
 input_dir = /scratch/00161/karl/sort_input/1-stripe/10_tb
+
+#input_dir = /scratch/00161/karl/sort_input/1-stripe/100_tb
 
 
 
