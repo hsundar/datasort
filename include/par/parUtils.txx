@@ -36,7 +36,7 @@
 //#define KWAY 16  // karl testing
 
 #ifndef KWAY
-		#define KWAY 8
+#define KWAY 8
 #endif 
 
 // #define OVERLAP_KWAY_COMM
@@ -4120,7 +4120,7 @@ namespace par {
           // std::cout << myrank << " " << i << " " << bucket_size[i] << std::endl;
         }
 
-	//#define USE_FWRITE
+#define USE_FWRITE
 
 #ifdef USE_FWRITE
         FILE* fp;
