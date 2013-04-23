@@ -98,7 +98,9 @@ void sortio_Class::manageSortProcess()
   int count            = 0;
   int outputCount      = 0;
   int numFilesReceived = 0;
+  int maxDirNum        = 0;     // flag to keep track of max directory number created for tmp files
   int activeBin        = 0;	// currently active binning communicator
+  int maxPerBin        = 0;     // max size of tmp data per host from any bin
 
   if(isMasterSort_)
     grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] Beginning main processing loop \n",sortRank_);
@@ -146,10 +148,16 @@ void sortio_Class::manageSortProcess()
 		      grvy_printf(INFO,"[sortio][SORT][%.4i]: Doing approximate binning (%i files)\n",
 				  sortRank_,globalData);
 
+		      grvy_printf(INFO,"[sortio][SORT][%.4i]: # of files available = %zi\n",
+				  sortRank_,sortBuffer.size());
+
 		    gt.BeginTimer("Local Sort");
 		    omp_par::merge_sort(&sortBuffer[0],&sortBuffer[sortBuffer.size()]);
 		    gt.EndTimer("Local Sort");
-		    
+
+		      grvy_printf(INFO,"[sortio][SORT][%.4i]: # of files available after sort = %zi\n",
+				  sortRank_,sortBuffer.size());
+
 		    gt.BeginTimer("Global Binning");
 		    sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,BIN_COMMS_[0]);
 		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numBins-1,BIN_COMMS_[0]);
@@ -160,6 +168,7 @@ void sortio_Class::manageSortProcess()
 		    outputCount = 0; // first write
 		    
 		    sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[0]);
+		    grvy_printf(INFO,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		    
 		    grvy_check_file_path(tmpFilename);
 		    grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
@@ -203,7 +212,7 @@ void sortio_Class::manageSortProcess()
 
       assert( MPI_Bcast( sortBins.data(),sortBins.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
 
-  // double check 
+      // double check 
 
       if(binNum_ == 0 && binRanks_[0] == 1)
 	for(size_t i=0;i<binOrig.size();i++)
@@ -295,7 +304,7 @@ void sortio_Class::manageSortProcess()
 	  // Continue with local binning and temporary file writes (1 per host)
 
 	  int threshold = 0;
-#if 1
+#if 0
 	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
 	    threshold = numSortHosts_ / 2;
 #endif
@@ -316,7 +325,7 @@ void sortio_Class::manageSortProcess()
 
 		  //		  outputCount = iterCount*numSortGroups_ + binRanks_[binNum_];
 		  outputCount = iterCount*numSortGroups_ + binNum_;
-
+		  
 		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
 		  grvy_printf(INFO,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		  
@@ -359,6 +368,14 @@ void sortio_Class::manageSortProcess()
   if(sortMode_ > 1)
     {
 
+      int maxDirNumLocal = outputCount;
+      maxDirNum          = 0;
+
+      assert (MPI_Allreduce(&maxDirNumLocal,&maxDirNum,1,MPI_INT,MPI_MAX,SORT_COMM) == MPI_SUCCESS);
+
+      if(isMasterSort_)
+      grvy_printf(INFO,"[sortio][FINALSORT] max /tmp dir num = %i\n",maxDirNum);
+
       int numWrittenLocal  = 0;
       int numWrittenGlobal = 0;
 
@@ -368,122 +385,159 @@ void sortio_Class::manageSortProcess()
       
       assert (MPI_Reduce(&numWrittenLocal,&numWrittenGlobal,1,MPI_INT,MPI_SUM,0,SORT_COMM) == MPI_SUCCESS);
 
+      int maxPerBinLocal = 0;
+
+      for(int ibin=0;ibin<numBins;ibin++)
+	{
+	  int count = 0;
+	  for(size_t i=0;i<tmpWriteSizes.size();i++)
+	    count += tmpWriteSizes[i][ibin];
+
+	  if(count > maxPerBinLocal)
+	    maxPerBinLocal = count;
+	}
+
+      assert (MPI_Allreduce(&maxPerBinLocal,&maxPerBin,1,MPI_INT,MPI_MAX,SORT_COMM) == MPI_SUCCESS);
+
       assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
       
       if(isMasterSort_)
-	grvy_printf(INFO,"[sortio][FINALSORT] Total # of records written = %i\n",numWrittenGlobal);
+	{
+	  grvy_printf(INFO,"[sortio][FINALSORT] Total # of records written = %i\n",numWrittenGlobal);
+	  grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
+	}
     }
 
-  // Re-read binned data to complete final sort
+  // We are almost there: re-read binned data to complete final sort
 
   if(sortMode_ > 1)
     {
+
+      MPI_Barrier(SORT_COMM);
       
       int outputLocal  = tmpWriteSizes.size();
       int outputCount  = 0;
 
-      assert (MPI_Reduce(&outputLocal,&outputCount,1,MPI_INT,MPI_SUM,0,SORT_COMM) == MPI_SUCCESS);
-
-      outputCount /= numSortGroups_; 
-      
       if(isMasterSort_)
-	grvy_printf(INFO,"[sortio][FINALSORT] Total # distinct outputs (per bin) = %i\n",outputCount);
+	{
+	  grvy_printf(INFO,"[sortio][FINALSORT] Total # distinct outputs (per bin) = %i\n",maxDirNum);
+	  fflush(NULL);
+	}
+
+
+
+      int numRecordsReadFromTmp = 0;
       
       if(isBinTask_[0])
-	for(int ibin=0;ibin<numBins;ibin++)
-	  {
-	    
-	    if(isMasterSort_)
-	      grvy_printf(INFO,"[sortio][FINALSORT] Working on bin %i of %i...\n",ibin,numBins);
-	    
-	    int recordsPerBinLocal = 0;
-	    int recordsPerBin      = 0;
-	    
-	    for(int i=0;i<tmpWriteSizes.size();i++)
-	      recordsPerBinLocal += tmpWriteSizes[i][ibin];
-	    
-	    assert (MPI_Reduce(&recordsPerBinLocal,&recordsPerBin,1,MPI_INT,MPI_SUM,0,BIN_COMMS_[0]) == MPI_SUCCESS);
-	    
-	    if(isMasterSort_)
-	      grvy_printf(INFO,"[sortio][FINALSORT] --> # of records to read for bin %i = %i...\n",
-			  ibin,recordsPerBin);
+	{
 
+	  for(int ibin=0;ibin<numBins;ibin++)
+	    {
 
-	    //	    int    numTotal   = 0;
-	    size_t startIndex = 0;
-	    
-	    //	    for(int iter=0;iter<outputCount;iter++)
-	    //	      numTotal += tmpWriteSizes[iter][ibin];
-	  
-	    std::vector<sortRecord> binnedData(recordsPerBin);
+	      if(isMasterSort_)
+		grvy_printf(INFO,"[sortio][FINALSORT] Working on bin %i of %i...\n",ibin,numBins);
 
-	    gt.BeginTimer("Read Temp Data");
-	    
-	    for(int iter=0;iter<outputCount;iter++)
-	      {
-		//int numLocal = tmpWriteSizes[iter][ibin];
-		
-		sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,sortRank_,ibin);
-		FILE *fp = fopen(tmpFilename,"rb");
-		if(fp == NULL)
-		  grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Unable to access file %s\n",sortRank_,tmpFilename);
-		
-		assert(fp != NULL);
+	      // allocate buffer space for reading in tmp data (max size computed above).
+
+	      std::vector<sortRecord> binnedData(maxPerBin*numBins);
+      
+	      int recordsPerBinLocal = 0;
+	      int recordsPerBinMax   = 0;
+	      
+	      for(int i=0;i<tmpWriteSizes.size();i++)
+		recordsPerBinLocal += tmpWriteSizes[i][ibin];
+	      
+	      assert (MPI_Allreduce(&recordsPerBinLocal,&recordsPerBinMax,1,
+				    MPI_INT,MPI_MAX,BIN_COMMS_[0]) == MPI_SUCCESS);
+	      
+	      if(isMasterSort_)
+		{
+		  grvy_printf(INFO,"[sortio][FINALSORT] --> # of records to read for bin %i = %i...\n",
+			      ibin,recordsPerBinMax);
+		}
+	      
+	      size_t startIndex = 0;
+
+	      //std::vector<sortRecord> binnedData(recordsPerBinMax*10);
+	      //std::vector<sortRecord> binnedData(maxPerBin*2);
+	      
+	      gt.BeginTimer("Read Temp Data");
+	      
+	      int myCount = 0;
+	      
+	      for(int iter=0;iter<=maxDirNum;iter++)
+		{
+		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,binRanks_[0],ibin);
+
+		  FILE *fp = fopen(tmpFilename,"rb");
+		  if(fp == NULL)
+		    grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Unable to access file %s\n",binRanks_[0],tmpFilename);
+		  
+		  assert(fp != NULL);
+		  grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Read in file %s\n",binRanks_[0],tmpFilename);
+		  
+		  myCount = 0;
+		  while(fread(&binnedData[startIndex],sizeof(sortRecord),1,fp) == 1)
+		    {
+		      startIndex++;
+		      if(startIndex >= binnedData.size())
+			printf("[%.4i]: wtf, size = %zi of %zi (%s)\n",binRanks_[0],startIndex,binnedData.size(),
+			       tmpFilename);
+		      assert(startIndex < binnedData.size());
+		      myCount++;
+		    }
+		  
+		  assert(feof(fp));
+
+		  fclose(fp);
+
+		  numRecordsReadFromTmp += myCount;
+
+		} // end loop over maxDirNum
+	      
+	      gt.EndTimer("Read Temp Data");
+
+	      int globalRead;
+	      binnedData.resize(startIndex);
 
 #if 1
-		int myCount = 0;
-		while(fread(&binnedData[startIndex],sizeof(sortRecord),1,fp) == 1)
-		  {
-		    startIndex++;
-		    assert(startIndex < binnedData.size());
-		    myCount++;
-		  }
+	      std::vector<sortRecord> out;
+	      
+	      //omp_set_num_threads(1);
 
-		assert(feof(fp));
-
-		grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Read in file %s\n",sortRank_,tmpFilename);
-		grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Got %i of %i expected\n",sortRank_,
-			    myCount,binnedData.size());
-		
+	      gt.BeginTimer("Final Sort");
+	      par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[0]);
+	      gt.EndTimer("Final Sort");
+	      
+	      assert(binnedData.size() == out.size());
+	      
+	      gt.BeginTimer("Final Write");	  
+	      sprintf(tmpFilename,"./final_sort/part_bin%.3i_p%.5i",ibin,sortRank_);
+	      grvy_check_file_path(tmpFilename);
+		  
+	      FILE *fp = fopen(tmpFilename,"wb");
+	      assert(fp != NULL);
+		  
+	      //fwrite(&binnedData[0],sizeof(sortRecord),binnedData.size(),fp);
+	      fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
+	      fclose(fp);
+	      gt.EndTimer("Final Write");	  
 #endif
-		fclose(fp);
+	      MPI_Barrier(BIN_COMMS_[0]);
 
-#if 0		
-		fread(&binnedData[startIndex],sizeof(sortRecord),numLocal,fp);
-		fclose(fp);
-		startIndex += numLocal;
-#endif
-	      }
-	    
-	    gt.EndTimer("Read Temp Data");
-	    //	    assert(startIndex == numTotal);
+	    } // end loop over numBins
 
-#if 0	    
-	    std::vector<sortRecord> out;
-	    
-	    //omp_set_num_threads(1);
-	    
-	    gt.BeginTimer("Final Sort");
-	    //par::HyperQuickSort(binnedData, out, SORT_COMM);
-	    par::HyperQuickSort_kway(binnedData, out, SORT_COMM);
-	    gt.EndTimer("Final Sort");
-	    
-	    assert(binnedData.size() == out.size());
-	    
-	    gt.BeginTimer("Final Write");	  
-	    sprintf(tmpFilename,"./final_sort/part_bin%.3i_p%.5i",ibin,sortRank_);
-	    grvy_check_file_path(tmpFilename);
-	    
-	    FILE *fp = fopen(tmpFilename,"wb");
-	    assert(fp != NULL);
-	    
-	    //fwrite(&binnedData[0],sizeof(sortRecord),binnedData.size(),fp);
-	    fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
-	    fclose(fp);
-	    gt.EndTimer("Final Write");	  
-	    #endif
-	  }
-    }
+	  // verify we re-read in all the data
+
+	  int globalRead = 0;
+
+	  assert (MPI_Allreduce(&numRecordsReadFromTmp,&globalRead,1,
+				MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
+	  
+	  assert(globalRead == numFilesTotal_*numRecordsPerXfer);
+	  
+	} 
+    } 
 
   // now, wasn't that easy? big data shoplifters of the world
   // unite. send notification to companion IPC tasks that we are all
