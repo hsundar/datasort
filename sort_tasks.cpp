@@ -153,9 +153,6 @@ void sortio_Class::manageSortProcess()
 		    omp_par::merge_sort(&sortBuffer[0],&sortBuffer[sortBuffer.size()]);
 		    gt.EndTimer("Local Sort");
 
-		      grvy_printf(INFO,"[sortio][SORT][%.4i]: # of files available after sort = %zi\n",
-				  sortRank_,sortBuffer.size());
-
 		    gt.BeginTimer("Global Binning");
 		    sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,BIN_COMMS_[0]);
 		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numBins-1,BIN_COMMS_[0]);
@@ -166,7 +163,7 @@ void sortio_Class::manageSortProcess()
 		    outputCount = 0; // first write
 		    
 		    sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[0]);
-		    grvy_printf(INFO,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
+		    grvy_printf(DEBUG,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		    
 		    grvy_check_file_path(tmpFilename);
 		    grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
@@ -368,9 +365,6 @@ void sortio_Class::manageSortProcess()
       maxDirNum          = 0;
 
       assert (MPI_Allreduce(&maxDirNumLocal,&maxDirNum,1,MPI_INT,MPI_MAX,SORT_COMM) == MPI_SUCCESS);
-
-      if(isMasterSort_)
-      grvy_printf(INFO,"[sortio][FINALSORT] max /tmp dir num = %i\n",maxDirNum);
 
       int numWrittenLocal  = 0;
       int numWrittenGlobal = 0;

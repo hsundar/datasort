@@ -391,6 +391,11 @@ void sortio_Class::SplitComm()
       numSortTasks_   = sort_comm_ranks.size();
       numSortHosts_   = first_sort_rank.size();
 
+      // Final sort does stalls with non-powers of 2, verify now.
+
+      if(sortMode_ > 1)
+	assert(isPowerOfTwo(numSortHosts_));
+
       // quick sanity checks and assumptions
 
       assert(numIoTasks_   > 0);
@@ -734,4 +739,9 @@ void sortio_Class::addBuffertoEmptyQueue(int bufNum)
     grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] added %i buff back to emptyQueue\n",ioRank_,bufNum);
   }
   return;
+}
+
+int sortio_Class::isPowerOfTwo(unsigned int x)
+{
+  return ((x != 0) && !(x & (x - 1)));
 }

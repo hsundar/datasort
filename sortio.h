@@ -76,6 +76,7 @@ class sortio_Class {
   void addBuffertoEmptyQueue (int bufNum);
   void cycleBinGroup         (int numFilesTotal,int currentGroup);
   int  waitForActivation();
+  int  isPowerOfTwo(unsigned int x);
 
  private:
   bool master;			         // master MPI rank?
