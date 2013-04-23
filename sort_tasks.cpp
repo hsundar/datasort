@@ -516,10 +516,12 @@ void sortio_Class::manageSortProcess()
 	      
 	      omp_set_num_threads(numSortThreads_);
 
+	      MPI_Barrier(BIN_COMMS_[0]);
 	      gt.BeginTimer("Final Sort");
 
-	      grvy_printf(INFO,"[sortio][FINALSORT][%.4i] calling final sort with input size = %zi\n",binRanks_[0],binnedData.size());
-
+	      grvy_printf(INFO,"[sortio][FINALSORT][%.4i] calling final sort with input size = %zi\n",
+			  binRanks_[0],binnedData.size());
+	      
 	      par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[0]);
 	      gt.EndTimer("Final Sort");
 	      
