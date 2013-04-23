@@ -3,6 +3,8 @@
 //
 
 #include "sortio.h"
+#define _PROFILE_SORT
+#include "par/sort_profiler.h"
 
 sortio_Class::sortio_Class() 
 {
@@ -461,6 +463,8 @@ void sortio_Class::SplitComm()
 
   // Build up new MPI task groups
 
+  //gt.BeginTimer("MPI task groups");
+
   assert( MPI_Bcast(&numIoTasks_,          1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numXferTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
@@ -483,6 +487,9 @@ void sortio_Class::SplitComm()
 
     }
 
+  if(master)
+    printf("after bcast1...\n");
+
   assert( MPI_Bcast(  io_comm_ranks.data(),numIoTasks_,  MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(xfer_comm_ranks.data(),numXferTasks_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),numSortTasks_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
@@ -495,6 +502,10 @@ void sortio_Class::SplitComm()
 
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
+
+  if(master)
+    printf("after bcast2...\n");
+  fflush(NULL);
 
   MPI_Group group_global;
   MPI_Group group_io;
@@ -522,6 +533,11 @@ void sortio_Class::SplitComm()
 
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Comm_create(GLOB_COMM, groups_binning[i], &BIN_COMMS_[i]) == MPI_SUCCESS);
+
+  if(master)
+    printf("after comm create...\n");
+
+  fflush(NULL);
 
   // is the local rank part of the new groups?
 
@@ -615,6 +631,8 @@ void sortio_Class::SplitComm()
 	  assert( MPI_Comm_rank(BIN_COMMS_[i],&binRanks_[i]) == MPI_SUCCESS);
     }
 
+  //gt.EndTimer("MPI task groups");
+
   MPI_Barrier(GLOB_COMM);
 
   // summarize the config (data printed from master rank to make the output easy on 
@@ -641,8 +659,8 @@ void sortio_Class::SplitComm()
       for(int i=2;i<=numSortGroups_;i++)
 	grvy_printf(INFO,"--------");
       grvy_printf(INFO,"\n");
+      fflush(NULL);
     }
-
 
   const int numColumns = 3 + numSortGroups_;
   int *ranks_tmp;
@@ -764,4 +782,84 @@ void sortio_Class::addBuffertoEmptyQueue(int bufNum)
 int sortio_Class::isPowerOfTwo(unsigned int x)
 {
   return ((x != 0) && !(x & (x - 1)));
+}
+
+
+
+
+void getStats(double val, double *meanV, double *minV, double *maxV, MPI_Comm comm) 
+{ 
+	int p; 
+	double d, din;
+	din = val;
+  MPI_Comm_size(comm, &p);
+	MPI_Reduce(&din, &d, 1, MPI_DOUBLE, MPI_SUM, 0, comm); *meanV = d/p;
+	MPI_Reduce(&din, &d, 1, MPI_DOUBLE, MPI_MIN, 0, comm); *minV = d;
+	MPI_Reduce(&din, &d, 1, MPI_DOUBLE, MPI_MAX, 0, comm); *maxV = d;
+}
+
+void printResults( MPI_Comm comm) {
+	int myrank, p, simd_width=0;
+	MPI_Comm_size(comm, &p);
+	MPI_Comm_rank(comm, &myrank);
+#ifdef SIMD_MERGE
+	simd_width=SIMD_MERGE;
+#endif
+		// reduce results
+		double t, meanV, minV, maxV;
+		if (!myrank) {
+			// std::cout << std::endl;
+			// std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+		  //			std::cout <<  p << " tasks : " << num_threads << " threads " << simd_width << " SIMD_WIDTH " << std::endl;
+			// std::cout << "===========================================================================" << std::endl;
+		}
+		t = total_sort.seconds; 			getStats(t, &meanV, &minV, &maxV, comm);
+		if (!myrank) {
+			std::cout << "Total sort time   \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl;
+			// std::cout << "----------------------------------------------------------------------" << std::endl;
+		}
+		t = seq_sort.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);
+		if (!myrank) {
+			std::cout << "Sequential Sort   \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl;
+		}
+		t = sort_partitionw.seconds; 	getStats(t, &meanV, &minV, &maxV, comm);
+		if (!myrank) {	
+			std::cout << "partitionW        \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+			// std::cout << "----------------------------------------------------------------------" << std::endl;
+		}
+		//#ifndef KWICK
+		t = sample_sort_splitters.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);
+		if (!myrank) {	
+			std::cout << "sort splitters    \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		t = sample_prepare_scatter.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);
+		if (!myrank) {
+			std::cout << "prepare scatter   \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		t = sample_do_all2all.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);	
+		if (!myrank) {
+			std::cout << "all2all           \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}			 
+		//#else
+		t = hyper_compute_splitters.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);		
+		if (!myrank) {	
+			std::cout << "compute splitters \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		t = hyper_communicate.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);	
+		if (!myrank) {	
+			std::cout << "exchange data     \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		t = hyper_merge.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);	
+		if (!myrank) {	
+			std::cout << "merge arrays      \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		t = hyper_comm_split.seconds; 				getStats(t, &meanV, &minV, &maxV, comm);	
+		if (!myrank) {	
+			std::cout << "comm split        \t\t\t" << meanV << "\t" << minV << "\t" << maxV <<  std::endl; 
+		}
+		//#endif
+		if (!myrank) {			
+			// std::cout << "---------------------------------------------------------------------------" << std::endl;
+			std::cout << "" << std::endl;
+		}			 
 }

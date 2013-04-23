@@ -34,6 +34,8 @@
 #define DEBUG    GRVY_DEBUG
 #define ERROR    GRVY_INFO
 
+void printResults(MPI_Comm comm);
+
 // simple MPI message record - used to track active messages in flight
 
 class MsgRecord {
