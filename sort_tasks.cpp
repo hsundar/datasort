@@ -105,6 +105,8 @@ void sortio_Class::manageSortProcess()
 
   MPI_Barrier(SORT_COMM);
 
+  gt.BeginTimer("Sort/Recv");
+
   // Perform initial binning to determine bucket thresholds (this is only done
   // once and occurs only on first BIN group)
 
@@ -186,6 +188,7 @@ void sortio_Class::manageSortProcess()
       }
 
   MPI_Barrier(SORT_COMM);
+  gt.EndTimer("Sort/Recv");
 
   if(isMasterSort_)
     printf("[sortio][SORT][%.4i]: First bucket binning complete\n",sortRank_);
@@ -227,6 +230,8 @@ void sortio_Class::manageSortProcess()
   // BIN communicators to provide an asychnronous mechanism for saving
   // the temporary data to disk (only tasks associated with a BIN
   // group participate)
+
+  gt.BeginTimer("Sort/Recv");
 
   while(numFilesReceived < numFilesTotal_)
     {
@@ -348,6 +353,9 @@ void sortio_Class::manageSortProcess()
 
     } // end main loop
 
+  gt.EndTimer("Sort/Recv");
+
+
   if(binNum_ >= 0)
     grvy_printf(DEBUG,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
 
@@ -389,11 +397,11 @@ void sortio_Class::manageSortProcess()
 
       assert (MPI_Allreduce(&maxPerBinLocal,&maxPerBin,1,MPI_INT,MPI_MAX,SORT_COMM) == MPI_SUCCESS);
 
-      assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
+      //      assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
       
       if(isMasterSort_)
 	{
-	  grvy_printf(INFO,"[sortio][FINALSORT] Total # of records written = %i\n",numWrittenGlobal);
+	  //	  grvy_printf(INFO,"[sortio][FINALSORT] Total # of records written = %i\n",numWrittenGlobal);
 	  grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
 	}
     }
@@ -506,7 +514,6 @@ void sortio_Class::manageSortProcess()
 	      fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
 	      fclose(fp);
 	      gt.EndTimer("Final Write");	  
-	      MPI_Barrier(BIN_COMMS_[0]);
 
 	    } // end loop over numBins
 

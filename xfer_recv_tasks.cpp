@@ -101,8 +101,9 @@ void sortio_Class::beginRecvTransferProcess()
 		usleep(usleepInterval);
 		if(syncFlags[0] == 0)
 		  {
-		    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalled for"
-				" %9.4e secs (iter=%i)\n",xferRank_,1.0e-6*i*usleepInterval,ifile);
+		    if(i> 10000)
+		      grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalled for"
+				  " %9.4e secs (iter=%i)\n",xferRank_,1.0e-6*i*usleepInterval,ifile);
 		    break;
 		  }
 	      }

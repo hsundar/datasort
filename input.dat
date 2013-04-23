@@ -20,9 +20,9 @@ num_sort_threads       = 4
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/140_gib
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/557_gib
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/1392_gib
-#input_dir = /scratch/00161/karl/sort_input/1-stripe/10_tb
+input_dir = /scratch/00161/karl/sort_input/1-stripe/10_tb
 
-input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb
+#input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb
 output_dir = /scratch/00161/karl/sort_output/1-stripe/100_tb
 
 
