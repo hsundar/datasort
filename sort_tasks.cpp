@@ -6,8 +6,6 @@
 #include "par/parUtils.h"
 #include "gensort/sortRecord.h"
 
-//#define _PROFILE_SORT
-
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
 // 
@@ -297,14 +295,13 @@ void sortio_Class::manageSortProcess()
 
 	  assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
 
-	  //grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] group %i past all reduce\n",sortRank_,binNum_);
-
 	  numFilesReceived += globalData;
 
 	  // Continue with local binning and temporary file writes (1 per host)
 
 	  int threshold = 0;
-#if 0
+
+#if 1
 	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
 	    threshold = numSortHosts_ / 2;
 #endif
@@ -322,12 +319,11 @@ void sortio_Class::manageSortProcess()
 		  if(binRanks_[binNum_] == 0)
 		    grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
 				sortRank_,globalData);
-
-		  //		  outputCount = iterCount*numSortGroups_ + binRanks_[binNum_];
+		  
 		  outputCount = iterCount*numSortGroups_ + binNum_;
 		  
 		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
-		  grvy_printf(INFO,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
+		  grvy_printf(DEBUG,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		  
 		  grvy_check_file_path(tmpFilename);
 		  grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
@@ -424,8 +420,6 @@ void sortio_Class::manageSortProcess()
 	  fflush(NULL);
 	}
 
-
-
       int numRecordsReadFromTmp = 0;
       
       if(isBinTask_[0])
@@ -450,17 +444,14 @@ void sortio_Class::manageSortProcess()
 	      assert (MPI_Allreduce(&recordsPerBinLocal,&recordsPerBinMax,1,
 				    MPI_INT,MPI_MAX,BIN_COMMS_[0]) == MPI_SUCCESS);
 	      
-	      if(isMasterSort_)
-		{
-		  grvy_printf(INFO,"[sortio][FINALSORT] --> # of records to read for bin %i = %i...\n",
-			      ibin,recordsPerBinMax);
-		}
-	      
+//	      if(isMasterSort_)
+//		{
+//		  grvy_printf(INFO,"[sortio][FINALSORT] --> # of records to read for bin %i = %i...\n",
+//			      ibin,recordsPerBinMax);
+//		}
+//	      
 	      size_t startIndex = 0;
 
-	      //std::vector<sortRecord> binnedData(recordsPerBinMax*10);
-	      //std::vector<sortRecord> binnedData(maxPerBin*2);
-	      
 	      gt.BeginTimer("Read Temp Data");
 	      
 	      int myCount = 0;
@@ -474,7 +465,7 @@ void sortio_Class::manageSortProcess()
 		    grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Unable to access file %s\n",binRanks_[0],tmpFilename);
 		  
 		  assert(fp != NULL);
-		  grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Read in file %s\n",binRanks_[0],tmpFilename);
+		  grvy_printf(DEBUG,"[sortio][FINALSORT][%.4i] Read in file %s\n",binRanks_[0],tmpFilename);
 		  
 		  myCount = 0;
 		  while(fread(&binnedData[startIndex],sizeof(sortRecord),1,fp) == 1)
@@ -500,7 +491,6 @@ void sortio_Class::manageSortProcess()
 	      int globalRead;
 	      binnedData.resize(startIndex);
 
-#if 1
 	      std::vector<sortRecord> out;
 	      
 	      //omp_set_num_threads(1);
@@ -522,7 +512,6 @@ void sortio_Class::manageSortProcess()
 	      fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
 	      fclose(fp);
 	      gt.EndTimer("Final Write");	  
-#endif
 	      MPI_Barrier(BIN_COMMS_[0]);
 
 	    } // end loop over numBins
