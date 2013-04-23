@@ -456,7 +456,6 @@ void sortio_Class::SplitComm()
       grvy_printf(INFO,"[sortio] --> Number of XFER MPI tasks       = %4i\n",numXferTasks_);
       grvy_printf(INFO,"[sortio] --> Number of SORT MPI tasks       = %4i\n",numSortTasks_);
       grvy_printf(INFO,"[sortio] --> Number of BIN  groups          = %4i\n",numSortGroups_);
-      //      grvy_printf(INFO,"[sortio]     --> Number MPI tasks per group = %4i\n",numSortHosts_);
 
     }
 
@@ -466,11 +465,8 @@ void sortio_Class::SplitComm()
   assert( MPI_Bcast(&numXferTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortTasks_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortHosts_,        1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
-  //assert( MPI_Bcast(&numSortTasksPerHost_, 1,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS );
 
   assert(numSortHosts_ > 0);
-
-
 
   if(!master)
     {
@@ -479,13 +475,11 @@ void sortio_Class::SplitComm()
       sort_comm_ranks.reserve(numSortTasks_ );
       first_sort_rank.reserve(numSortHosts_ );
 
-#if 1
       for(int i=0;i<numSortGroups_;i++)
 	{
 	  std::vector<int> iVec(numSortHosts_);
 	  binCommRanks.push_back(iVec);
 	}
-#endif
 
     }
 
@@ -499,10 +493,8 @@ void sortio_Class::SplitComm()
   for(int i=0;i<numSortGroups_;i++)
     assert(binCommRanks[i].size() == numSortHosts_);
 
-#if 1
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
-#endif
 
   MPI_Group group_global;
   MPI_Group group_io;
