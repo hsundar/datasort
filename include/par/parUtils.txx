@@ -3634,7 +3634,7 @@ namespace par {
     }
 
   template<typename T>
-    std::vector<T> Sorted_approx_Select(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+    std::vector<T> Sorted_approx_Select_new(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
       int rank, npes;
       MPI_Comm_size(comm, &npes);
       MPI_Comm_rank(comm, &rank);
@@ -3671,7 +3671,7 @@ namespace par {
     }
     
 	template<typename T>
-		std::vector<T> Sorted_approx_Select_old(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+		std::vector<T> Sorted_approx_Select(std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
 			int rank, npes;
       MPI_Comm_size(comm, &npes);
 			MPI_Comm_rank(comm, &rank);
