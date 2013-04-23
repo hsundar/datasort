@@ -14,6 +14,7 @@ sortio_Class::sortio_Class()
   isMasterSort_             = false;
   overrideNumFiles_         = false;
   overrideNumIOHosts_       = false;
+  overrideNumSortThreads_   = false;
   random_read_offset_       = false;
   mpi_initialized_by_sortio = false;
   isIOTask_                 = false;
@@ -54,6 +55,13 @@ void sortio_Class::overrideNumIOHosts(int hosts)
 {
   overrideNumIOHosts_ = true;
   numIoHosts_        = hosts;
+  return;
+}
+
+void sortio_Class::overrideNumSortThreads(int numThreads)
+{
+  overrideNumSortThreads_ = true;
+  numSortThreads_         = numThreads;
   return;
 }
 
@@ -203,7 +211,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/verify_mode",             0);
       iparse.Register_Var("sortio/sort_mode",               1);
       iparse.Register_Var("sortio/num_sort_groups",         1);
-      iparse.Register_Var("sortio/num_sort_threads",        1);
+      if(!overrideNumSortThreads_)
+	iparse.Register_Var("sortio/num_sort_threads",      1);
 
       if(!overrideNumIOHosts_)
 	assert( iparse.Read_Var("sortio/num_io_hosts",        &numIoHosts_)           != 0 );
@@ -235,6 +244,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] --> Output directory              = %s\n",outputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
+      grvy_printf(INFO,"[sortio] --> Number of sort groups         = %i\n",numSortGroups_);
+      grvy_printf(INFO,"[sortio] --> Number of sort threads        = %i\n",numSortThreads_);
 
     }
 

@@ -496,7 +496,7 @@ void sortio_Class::manageSortProcess()
 	      assert(binnedData.size() == out.size());
 	      
 	      gt.BeginTimer("Final Write");	  
-	      sprintf(tmpFilename,"%s/part_bin%.3i_p%.5i",outputDir_,ibin,sortRank_);
+	      sprintf(tmpFilename,"%s/part_bin%.3i_p%.5i",outputDir_.c_str(),ibin,sortRank_);
 	      grvy_check_file_path(tmpFilename);
 		  
 	      FILE *fp = fopen(tmpFilename,"wb");

@@ -12,10 +12,11 @@ int main(int argc, char *argv[], char *env[])
     sort_IO.overrideNumFiles(atoi(argv[1]));
   if(argc > 2)
     sort_IO.overrideNumIOHosts(atoi(argv[2]));
+  if(argc > 3)
+    sort_IO.overrideNumSortThreads(atoi(argv[3]));
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();
-  //return(0);
   sort_IO.Init_Read();  
   sort_IO.beginRecvTransferProcess();
   sort_IO.manageSortProcess();

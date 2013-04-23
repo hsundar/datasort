@@ -60,8 +60,9 @@ class sortio_Class {
  ~sortio_Class();
 
   void Initialize(std::string inputfile, MPI_Comm IN_COMM);
-  void overrideNumFiles  (int nfiles);
-  void overrideNumIOHosts(int hosts);
+  void overrideNumFiles      (int nfiles);
+  void overrideNumIOHosts    (int hosts);
+  void overrideNumSortThreads(int numThreads);
   void ReadFiles(); 
   void SplitComm();
   void Summarize();
@@ -83,6 +84,7 @@ class sortio_Class {
   bool initialized_;		         // class initialized?
   bool overrideNumFiles_;                // Override num_files setting?
   bool overrideNumIOHosts_;              // Override num_io_hosts setting?
+  bool overrideNumSortThreads_;          // Override num_sort_threads setting?
   bool random_read_offset_;              // Randomly change rank ordering for read to minimize cache effects?
   bool mpi_initialized_by_sortio;        // did we have to call MPI_Init()?
 
