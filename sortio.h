@@ -96,6 +96,7 @@ class sortio_Class {
   int  numSortGroups_;			 // number of sort groups
   int  verifyMode_;			 // verification mode (1=input data)
   int  sortMode_;                        // sort mode (0=disable)
+  int  numSortBins_;			 // total # of sort bins
 
   unsigned long numRecordsRead_;         // total # of records read locally
   unsigned long recordsPerFile_;         // # of records read locally per file (assumed constant)

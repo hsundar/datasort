@@ -77,7 +77,7 @@ void sortio_Class::manageSortProcess()
   messageSize = syncFlags[1];	// raw buffersize passed 
 
   bool needBinning              = true;
-  const int numBins             = 10;  
+  //  const int numBins             = 10;  
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   const size_t binningWaterMark = 1*numSortHosts_;
 
@@ -159,11 +159,11 @@ void sortio_Class::manageSortProcess()
 		    gt.EndTimer("Local Sort");
 
 		    gt.BeginTimer("Global Binning");
-		    sortBins = par::Sorted_approx_Select(sortBuffer,numBins-1,BIN_COMMS_[0]);
-		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numBins-1,BIN_COMMS_[0]);
+		    sortBins = par::Sorted_approx_Select(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
 		    gt.EndTimer("Global Binning");
 		    
-		    assert(sortBins.size() == numBins - 1 );
+		    assert(sortBins.size() == numSortBins_ - 1 );
 		    
 		    outputCount = 0; // first write
 		    
@@ -179,7 +179,7 @@ void sortio_Class::manageSortProcess()
 									   tmpFilename,BIN_COMMS_[0]);
 		    gt.EndTimer("Bucket and Write");	    
 		    
-		    assert(writeCounts.size() == numBins );
+		    assert(writeCounts.size() == numSortBins_ );
 		    tmpWriteSizes.push_back(writeCounts);
 		    
 		    sortBuffer.clear();
@@ -203,7 +203,7 @@ void sortio_Class::manageSortProcess()
   if(sortMode_ > 0)
     {
       if(!isBinTask_[0])
-	sortBins.resize(numBins-1);
+	sortBins.resize(numSortBins_-1);
 
       std::vector<sortRecord> binOrig;
       if(binNum_ == 0 && binRanks_[0] == 1)
@@ -348,7 +348,7 @@ void sortio_Class::manageSortProcess()
 									 tmpFilename,BIN_COMMS_[binNum_]);
 		  gt.EndTimer("Bucket and Write");	    
 		  
-		  assert(writeCounts.size() == numBins );
+		  assert(writeCounts.size() == numSortBins_ );
 		  tmpWriteSizes.push_back(writeCounts);
 	      
 		  sortBuffer.clear();
@@ -397,7 +397,7 @@ void sortio_Class::manageSortProcess()
 
       int maxPerBinLocal = 0;
 
-      for(int ibin=0;ibin<numBins;ibin++)
+      for(int ibin=0;ibin<numSortBins_;ibin++)
 	{
 	  int count = 0;
 	  for(size_t i=0;i<tmpWriteSizes.size();i++)
@@ -423,7 +423,7 @@ void sortio_Class::manageSortProcess()
   if(sortMode_ > 1)
     {
 
-      MPI_Barrier(SORT_COMM);
+      //MPI_Barrier(SORT_COMM);
       
       int outputLocal  = tmpWriteSizes.size();
       int outputCount  = 0;
@@ -435,19 +435,30 @@ void sortio_Class::manageSortProcess()
 	}
 
       int numRecordsReadFromTmp = 0;
+
       
       if(isBinTask_[0])
 	{
 
-	  for(int ibin=0;ibin<numBins;ibin++)
+	  bool first_entry = true;
+
+	  for(int ibin=0;ibin<numSortBins_;ibin++)
 	    {
 
+	      // define current master group
+
+	      //binNum_ = ibin;
+	      //	      if(binNum_ >
+
+	      //	      if(first_entry)
+	      //		{
+
 	      if(isMasterSort_)
-		grvy_printf(INFO,"[sortio][FINALSORT] Working on bin %i of %i...\n",ibin,numBins);
+		grvy_printf(INFO,"[sortio][FINALSORT] Working on bin %i of %i...\n",ibin,numSortBins_);
 
 	      // allocate buffer space for reading in tmp data (max size computed above).
 
-	      std::vector<sortRecord> binnedData(maxPerBin*numBins);
+	      std::vector<sortRecord> binnedData(maxPerBin*numSortBins_);
       
 	      int recordsPerBinLocal = 0;
 	      int recordsPerBinMax   = 0;
@@ -548,7 +559,7 @@ void sortio_Class::manageSortProcess()
 	      fflush(NULL);
 
 
-	    } // end loop over numBins
+	    } // end loop over numSortBins_
 
 	  // verify we re-read in all the data
 
