@@ -487,7 +487,7 @@ void sortio_Class::manageSortProcess()
 
 	      std::vector<sortRecord> out;
 	      
-	      //omp_set_num_threads(1);
+	      omp_set_num_threads(numSortThreads_);
 
 	      gt.BeginTimer("Final Sort");
 	      par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[0]);
@@ -496,7 +496,7 @@ void sortio_Class::manageSortProcess()
 	      assert(binnedData.size() == out.size());
 	      
 	      gt.BeginTimer("Final Write");	  
-	      sprintf(tmpFilename,"./final_sort/part_bin%.3i_p%.5i",ibin,sortRank_);
+	      sprintf(tmpFilename,"%s/part_bin%.3i_p%.5i",outputDir_,ibin,sortRank_);
 	      grvy_check_file_path(tmpFilename);
 		  
 	      FILE *fp = fopen(tmpFilename,"wb");

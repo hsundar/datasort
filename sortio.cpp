@@ -203,14 +203,17 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/verify_mode",             0);
       iparse.Register_Var("sortio/sort_mode",               1);
       iparse.Register_Var("sortio/num_sort_groups",         1);
+      iparse.Register_Var("sortio/num_sort_threads",        1);
 
       if(!overrideNumIOHosts_)
 	assert( iparse.Read_Var("sortio/num_io_hosts",        &numIoHosts_)           != 0 );
 
       assert( iparse.Read_Var("sortio/input_dir",             &inputDir_)              != 0 );
+      assert( iparse.Read_Var("sortio/output_dir",            &outputDir_)             != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
       assert( iparse.Read_Var("sortio/num_sort_groups",       &numSortGroups_        ) != 0 );
+      assert( iparse.Read_Var("sortio/num_sort_threads",      &numSortThreads_       ) != 0 );
       assert( iparse.Read_Var("sortio/max_read_buffers",      &MAX_READ_BUFFERS)       != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs"  ,&MAX_FILE_SIZE_IN_MBS)   != 0 );
       assert( iparse.Read_Var("sortio/max_messages_watermark",&MAX_MESSAGES_WATERMARK) != 0 );
@@ -220,7 +223,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( numIoHosts_          > 0);
       assert( MAX_READ_BUFFERS     > 0);
       assert( MAX_FILE_SIZE_IN_MBS > 0);
-      assert( (numSortGroups_ >= 2) && (numSortGroups_ < 16) );   // Assume 16-way hosts or less (need 2 minimum)
+      assert( (numSortGroups_  >= 2) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
+      assert( (numSortThreads_ >  0) && (numSortThreads_ < 16) ); 
       assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
 
@@ -228,6 +232,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
       grvy_printf(INFO,"[sortio] --> Total number of files to read = %i\n",numFilesTotal_);
       grvy_printf(INFO,"[sortio] --> Input directory               = %s\n",inputDir_.c_str());
+      grvy_printf(INFO,"[sortio] --> Output directory              = %s\n",outputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
 
@@ -235,30 +240,42 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   // Broadcast necessary runtime controls to all tasks
 
-  int tmp_string_size = inputDir_.size() + 1;
-  char *tmp_string    = NULL;
+  int tmp_string_size  = inputDir_.size() + 1;
+  int tmp_string_size2 = outputDir_.size() + 1;
+  char *tmp_string     = NULL;
+  char *tmp_string2    = NULL;
 
   //  random_read_offset_  = true;
 
   assert( MPI_Bcast(&numFilesTotal_,        1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numIoHosts_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numSortGroups_,        1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numSortThreads_,       1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&verifyMode_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&sortMode_,             1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_READ_BUFFERS,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,  1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size,       1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&tmp_string_size2,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
   
   tmp_string = (char *)calloc(tmp_string_size,sizeof(char));
   strcpy(tmp_string,inputDir_.c_str());
 
-  assert (MPI_Bcast(tmp_string,tmp_string_size,MPI_CHAR,0,COMM) == MPI_SUCCESS);
+  tmp_string2 = (char *)calloc(tmp_string_size2,sizeof(char));
+  strcpy(tmp_string2,outputDir_.c_str());
+
+  assert (MPI_Bcast(tmp_string, tmp_string_size, MPI_CHAR,0,COMM) == MPI_SUCCESS);
+  assert (MPI_Bcast(tmp_string2,tmp_string_size2,MPI_CHAR,0,COMM) == MPI_SUCCESS);
 
   if(!master)
-    inputDir_ = tmp_string;
+    {
+      inputDir_  = tmp_string;
+      outputDir_ = tmp_string2;
+    }
 
   free(tmp_string);
+  free(tmp_string2);
 
   // initialize RNG
 

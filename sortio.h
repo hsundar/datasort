@@ -98,6 +98,7 @@ class sortio_Class {
 
   std::string fileBaseName_;	         // input file basename
   std::string inputDir_;	         // input directory
+  std::string outputDir_;		 // output directory
 
   GRVY::GRVY_Timer_Class gt;             // performance timer
 
@@ -147,6 +148,7 @@ class sortio_Class {
   int      numSortTasks_;	        // number of dedicated sort tasks
   int      sortRank_;		        // MPI rank of local sort task
   int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
+  int      numSortThreads_;		// number of final sort threads (OMP)
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
 
   // Binning tasks which overlap with SORT
