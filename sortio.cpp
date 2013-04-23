@@ -260,6 +260,10 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   free(tmp_string);
 
+  // initialize RNG
+
+  srand(numLocal_);
+
   MPI_Barrier(COMM);
 
   initialized_ = true;
