@@ -194,6 +194,20 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   GLOB_COMM = COMM;
 
+  // Log level
+
+  char *loglevel;
+  loglevel = getenv("LOGMODE");
+  if(loglevel != NULL)
+    {
+      if(strcmp(loglevel,"DEBUG") == 0)
+	grvy_log_setlevel(GRVY_DEBUG);
+      else if(strcmp(loglevel,"INFO") == 0)
+	grvy_log_setlevel(GRVY_INFO);
+      else if(strcmp(loglevel,"WARN") == 0)
+	grvy_log_setlevel(GRVY_WARN);
+    }
+
   // Read I/O runtime controls
 
   if(numLocal_ == 0)
