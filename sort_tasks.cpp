@@ -81,6 +81,8 @@ void sortio_Class::manageSortProcess()
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   const size_t binningWaterMark = 1*numSortHosts_;
 
+  //  const size_t binningWaterMark = numSortHosts_/10;
+
   char tmpFilename[1024];	     // location for tmp file
   std::vector<sortRecord> sortBins;  // binning buckets
   std::vector< std::vector<int> > tmpWriteSizes;
@@ -113,6 +115,8 @@ void sortio_Class::manageSortProcess()
   // Perform initial binning to determine bucket thresholds (this is only done
   // once and occurs only on first BIN group)
 
+  int fileOnHandFirst = 0;
+
   if(isBinTask_[0])
     while(true)
       {
@@ -135,8 +139,15 @@ void sortio_Class::manageSortProcess()
 
 	    localData    = 1;
 	    syncFlags[0] = 0;
+
+	    //filesOnHandFirst++;
+	    //int filesOnHandGlobal;
+	    //int localSize = sortBuffer.size()/numRecordsPerXfer;
+	    //int filesOnHand;
 	
-	    assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
+	    assert (MPI_Allreduce(&localData,&globalData, 1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
+	    //	    assert (MPI_Allreduce(&filesOnHandFirst,&filesOnHandGlobal,1,MPI_INT,MPI_SUM,
+	    //				  BIN_COMMS_[0]) == MPI_SUCCESS);
 	
 	    numFilesReceived += globalData;
 
@@ -149,7 +160,7 @@ void sortio_Class::manageSortProcess()
 		  {
 		    if(isMasterSort_)
 		      grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
-				  sortRank_,globalData);
+				  sortRank_,numFilesReceived);
 
 		      grvy_printf(INFO,"[sortio][SORT][%.4i]: # of files available = %zi\n",
 				  sortRank_,sortBuffer.size());
@@ -266,6 +277,7 @@ void sortio_Class::manageSortProcess()
 
       int count = 0;
       bool isActiveMaster = false;
+      int filesOnHand = 0;
 
       if(binRanks_[binNum_] == 0)
 	isActiveMaster = true;
@@ -279,8 +291,14 @@ void sortio_Class::manageSortProcess()
 			sortRank_,binNum_,count);
 
 	  int localData  = 0;
+	  int localSize  = 0;
+
 	  int globalData = 0;
-	  
+	  int globalSize = 0;
+
+	  int dataLocal [2];
+	  int dataGlobal[2];
+
 	  if(syncFlags[0] == 1)
 	    {
 	      if(sortMode_ > 0)
@@ -294,33 +312,62 @@ void sortio_Class::manageSortProcess()
 	      grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] re-enabling buffer (iter =%i)\n",sortRank_,count);
 	      
 	      localData    = 1;
+	      localSize    = sortBuffer.size()/numRecordsPerXfer;
 	      syncFlags[0] = 0;
 
 	    }
 
+	  dataLocal[0] = localData;
+	  dataLocal[1] = localSize;
+
+#ifdef ORIG_THRESHOLD
 	  assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
+#else
+	  assert (MPI_Allreduce(dataLocal,dataGlobal,2,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
+	  globalData = dataGlobal[0];
+
+	  //	  int filesonHand = dataGlobal[1];
+#endif
 
 	  numFilesReceived += globalData;
+	  filesOnHand      += globalData;
 
 	  // Continue with local binning and temporary file writes (1 per host)
 
 	  int threshold = 0;
 
 #if 1
-	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
+	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
+	    //	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
 	    {
+	      //threshold = numSortHosts_ / 4;
 	      //threshold = numSortHosts_ / 2;
 	      threshold = numSortHosts_ / 1.5;
 	      //threshold = numSortHosts_;
+	      //threshold = numSortBins_;
 	    }
 	  else 
 	    {
 	      //threshold = numFilesTotal_ - numFilesReceived - 1;
 	      threshold = numFilesTotal_ - numFilesReceived;
+	      //threshold = 0;
 	    }
+#else
+
+#endof
+
 #endif
-	  
+
+#ifndef ORIG_THRESHOLD
+	  //globalData = filesOnHand;
+#endif	  
+
+	  //#define OLD
+#ifdef OLD
 	  if( globalData > threshold )
+#else
+	  if( filesOnHand > threshold )
+#endif
 	    {
 
 	      // Transfer ownership to next BIN comm
@@ -332,8 +379,8 @@ void sortio_Class::manageSortProcess()
 
 		  if(binRanks_[binNum_] == 0)
 		    grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
-				sortRank_,globalData);
-		  
+				sortRank_,filesOnHand);
+
 		  outputCount = iterCount*numSortGroups_ + binNum_;
 		  
 		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
@@ -352,11 +399,21 @@ void sortio_Class::manageSortProcess()
 		  tmpWriteSizes.push_back(writeCounts);
 	      
 		  sortBuffer.clear();
+		  //		  filesOnHand = 0;
 		}
 	    }
 
+#ifdef OLD
 	  if(globalData > threshold)
 	    break;
+#else
+	  if(filesOnHand > threshold)
+	    {
+	      filesOnHand = 0;
+	      break;
+	    }
+#endif
+
 
 	  count++;
 	} // end while(true);
