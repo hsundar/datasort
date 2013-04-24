@@ -3611,7 +3611,7 @@ namespace par {
 
       size_t new_max_err=0;
       std::vector<T> split_keys(kway);
-      #pragma omp parallel for
+      //      #pragma omp parallel for   // bug fix from hari 4/24/13
       for (int i=0; i<kway; i++) {
         int ub_indx=std::upper_bound(&glb_rank[0], &glb_rank[glb_splt_count], exp_rank[i])-&glb_rank[0];
         int lb_indx=ub_indx-1; if(lb_indx<0) lb_indx=0;
@@ -4122,7 +4122,7 @@ namespace par {
           // std::cout << myrank << " " << i << " " << bucket_size[i] << std::endl;
         }
 
-	//#define USE_FWRITE
+#define USE_FWRITE
 
 #ifdef USE_FWRITE
         FILE* fp;
@@ -4153,6 +4153,7 @@ namespace par {
 
           }
           write(fd, &bucket[0], sizeof(T)*bucket.size() );
+	  fsync (fd);
           close (fd);
 #endif
           // update
