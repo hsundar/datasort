@@ -427,6 +427,7 @@ void sortio_Class::manageSortProcess()
       
       int outputLocal  = tmpWriteSizes.size();
       int outputCount  = 0;
+      const int tag    = 4200;
 
       if(isMasterSort_)
 	{
@@ -448,11 +449,26 @@ void sortio_Class::manageSortProcess()
 
 	      int sortGroup = ibin % numSortGroups_;
 
-	      MPI_Barrier(SORT_COMM);
-
 	      if(!isBinTask_[sortGroup])
 		continue;
 	      
+	      //	      MPI_Barrier(SORT_COMM);
+
+	      // non-master tasks wait for notification to proceed
+
+	      if(!first_entry || (first_entry && sortGroup != 0) )
+		{
+		  MPI_Status status;
+		  int activate;
+		  int recvRank  = sortRank_ -1;
+
+		  if(sortGroup == 0)
+		    recvRank = sortRank_ + (numSortGroups_ - 1);
+
+		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag,SORT_COMM,&status) == MPI_SUCCESS);
+		}
+
+		   
 	      if(isBinTask_[sortGroup])
 		{
 		  if(binRanks_[sortGroup] == 0)
@@ -481,7 +497,7 @@ void sortio_Class::manageSortProcess()
 				    binRanks_[sortGroup],tmpFilename);
 		      
 		      assert(fp != NULL);
-		      grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
+		      grvy_printf(DEBUG,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
 				  binRanks_[sortGroup],sortGroup,tmpFilename);
 		  
 		      myCount = 0;
@@ -512,6 +528,14 @@ void sortio_Class::manageSortProcess()
 		      fflush(NULL);
 		    }
 
+		  // notifiy next sort group to commence read while we do the remaining sort and write
+
+		  int destRank = sortRank_ + 1;
+		  int notify = 0;
+		  if(sortGroup == numSortGroups_ - 1)
+		    destRank = sortRank_ - (numSortGroups_ - 1);
+
+		  assert(MPI_Send(&notify,1,MPI_INT,destRank,tag,SORT_COMM) == MPI_SUCCESS);
 
 		  int globalRead;
 		  binnedData.resize(startIndex);
