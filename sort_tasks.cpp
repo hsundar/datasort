@@ -499,8 +499,12 @@ void sortio_Class::manageSortProcess()
 		      assert(startIndex < binnedData.size());
 		      myCount++;
 		    }
-		  
-		  assert(feof(fp));
+
+		  if(!feof(fp))
+		    grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Warning: missed eof for %s\n",
+				binRanks_[0],tmpFilename);
+
+		  //assert(feof(fp));
 
 		  fclose(fp);
 
@@ -534,9 +538,10 @@ void sortio_Class::manageSortProcess()
 			  binRanks_[0],binnedData.size());
 	      
 	      par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[0]);
+	      //par::sampleSort(binnedData, out, BIN_COMMS_[0]);
 	      gt.EndTimer("Final Sort");
 	      
-	      assert(binnedData.size() == out.size());
+	      //	      assert(binnedData.size() == out.size());
 
 	      if(isMasterSort_)
 		printf("after sort...\n");
