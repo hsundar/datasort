@@ -315,8 +315,8 @@ void sortio_Class::manageSortProcess()
 	    }
 	  else 
 	    {
-	      threshold = numFilesTotal_ - numFilesReceived - 1;
-	      //threshold = numFilesTotal_ - numFilesReceived;
+	      //threshold = numFilesTotal_ - numFilesReceived - 1;
+	      threshold = numFilesTotal_ - numFilesReceived;
 	    }
 #endif
 	  
@@ -468,6 +468,7 @@ void sortio_Class::manageSortProcess()
 		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag,SORT_COMM,&status) == MPI_SUCCESS);
 		}
 
+	      first_entry = false;
 		   
 	      if(isBinTask_[sortGroup])
 		{
@@ -537,6 +538,26 @@ void sortio_Class::manageSortProcess()
 
 		  assert(MPI_Send(&notify,1,MPI_INT,destRank,tag,SORT_COMM) == MPI_SUCCESS);
 
+		  //#define SYNC2
+
+#ifdef SYNC2
+	      if(!first_entry || (first_entry && sortGroup != 0) )
+		{
+		  MPI_Status status;
+		  int activate;
+		  int recvRank  = sortRank_ -1;
+
+		  if(sortGroup == 0)
+		    recvRank = sortRank_ + (numSortGroups_ - 1);
+
+		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag,SORT_COMM,&status) == MPI_SUCCESS);
+		}
+
+
+#endif
+
+		  // do final sort
+
 		  int globalRead;
 		  binnedData.resize(startIndex);
 
@@ -559,13 +580,27 @@ void sortio_Class::manageSortProcess()
 		  //par::sampleSort(binnedData, out, BIN_COMMS_[0]);
 		  gt.EndTimer("Final Sort");
 	      
-		  //	      assert(binnedData.size() == out.size());
-
 		  if(binRanks_[sortGroup] == 0)
 		    printf("after sort...\n");
 
+		  binnedData.clear();
+
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
+
+
+		  // notifiy next sort group to commence read while we do the remaining sort and write
+
+#ifdef SYNC2
+		  int destRank = sortRank_ + 1;
+		  int notify = 0;
+		  if(sortGroup == numSortGroups_ - 1)
+		    destRank = sortRank_ - (numSortGroups_ - 1);
+
+		  assert(MPI_Send(&notify,1,MPI_INT,destRank,tag,SORT_COMM) == MPI_SUCCESS);
+#endif
+
+		  // do final write
 	      
 		  gt.BeginTimer("Final Write");	  
 		  sprintf(tmpFilename,"%s/part_bin%.3i_p%.5i",outputDir_.c_str(),ibin,sortRank_);
