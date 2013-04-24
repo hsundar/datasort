@@ -148,7 +148,7 @@ void sortio_Class::manageSortProcess()
 		if(sortMode_ > 0)
 		  {
 		    if(isMasterSort_)
-		      grvy_printf(INFO,"[sortio][SORT][%.4i]: Doing approximate binning (%i files)\n",
+		      grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
 				  sortRank_,globalData);
 
 		      grvy_printf(INFO,"[sortio][SORT][%.4i]: # of files available = %zi\n",
@@ -429,7 +429,8 @@ void sortio_Class::manageSortProcess()
       
       int outputLocal  = tmpWriteSizes.size();
       int outputCount  = 0;
-      const int tag    = 4200;
+      const int tag1   = 4200;
+      const int tag2   = 42000;
 
       if(isMasterSort_)
 	{
@@ -469,7 +470,7 @@ void sortio_Class::manageSortProcess()
 		  if(binRanks_[sortGroup] == 0)
 		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i waiting to begin local read...\n",sortGroup);
 
-		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag+ibin,SORT_COMM,&status) == MPI_SUCCESS);
+		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag1+ibin,SORT_COMM,&status) == MPI_SUCCESS);
 		}
 
 	      first_entry = false;
@@ -527,20 +528,6 @@ void sortio_Class::manageSortProcess()
 
 		  gt.EndTimer("Read Temp Data");
 
-		  // notifiy next sort group to commence read while we do the remaining sort and write
-
-		  int destRank = sortRank_ + 1;
-		  int notify = 0;
-		  if(sortGroup == numSortGroups_ - 1)
-		    destRank = sortRank_ - (numSortGroups_ - 1);
-
-		  if(binRanks_[sortGroup] == 0)
-		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
-				sortGroup);
-		  fflush(NULL);
-
-		  if(ibin < (numSortBins_-1))
-		    assert(MPI_Send(&notify,1,MPI_INT,destRank,tag+ibin+1,SORT_COMM) == MPI_SUCCESS);
 
 		  //#define SYNC2
 
@@ -592,9 +579,24 @@ void sortio_Class::manageSortProcess()
 
 		  binnedData.clear();
 
+		  // notifiy next sort group to commence read...
+
+		  int destRank = sortRank_ + 1;
+		  int notify = 0;
+		  if(sortGroup == numSortGroups_ - 1)
+		    destRank = sortRank_ - (numSortGroups_ - 1);
+
+		  if(binRanks_[sortGroup] == 0)
+		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
+				sortGroup);
+		  fflush(NULL);
+
+		  if(ibin < (numSortBins_-1))
+		    assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
+
+
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
-
 
 		  // notifiy next sort group to commence read while we do the remaining sort and write
 
@@ -605,7 +607,13 @@ void sortio_Class::manageSortProcess()
 		  if(sortGroup == numSortGroups_ - 1)
 		    destRank = sortRank_ - (numSortGroups_ - 1);
 
-		  assert(MPI_Send(&notify,1,MPI_INT,destRank,tag+ibin+1000,SORT_COMM) == MPI_SUCCESS);
+		  if(binRanks_[sortGroup] == 0)
+		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin sort...\n",
+				sortGroup);
+		  fflush(NULL);
+
+		  if(ibin < (numSortBins_-1))
+		    assert(MPI_Send(&notify,1,MPI_INT,destRank,tag+ibin+1+1000,SORT_COMM) == MPI_SUCCESS);
 #endif
 
 		  // do final write
