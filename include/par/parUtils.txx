@@ -33,11 +33,13 @@
 #endif
 #endif
 
-#define KWAY 32  // karl testing
+#define KWAY 16  // karl testing
 
 #ifndef KWAY
 #define KWAY 8
 #endif 
+
+#define ALLTOALLV_FIX
 
 // #define OVERLAP_KWAY_COMM
 
