@@ -19,7 +19,8 @@ void sortio_Class::Init_Read()
 
   if(sortMode_ <= 0)
     {
-      readBuf_.resize(MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1024*1024/sizeof(sortRecord));
+      size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000/sizeof(sortRecord);
+      readBuf_.resize(bufSize);
     }
   else
     {
@@ -213,7 +214,9 @@ void sortio_Class::ReadFiles()
 
       // initialize for next file read
 
-      buffer           = buffers_[buf_num];
+      if(sortMode_ > 0)
+	buffer         = buffers_[buf_num];
+
       read_size        = REC_SIZE;
       records_per_file = 0;
 
@@ -237,17 +240,26 @@ void sortio_Class::ReadFiles()
 	      
 	      if(read_size == 0)
 		break;
-	      
-	      assert(read_size == REC_SIZE);
+	     
+	      if(sortMode_ <= 0)
+		assert(read_size == 1);
+	      else
+		assert(read_size == REC_SIZE);
 	      
 	      numRecordsRead_++;
 	      records_per_file++;
 	    }
+	  count++;
 	}
       else
 	{
-	  records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
+	  if(sortMode_ <= 0)
+	    records_per_file = fread(&readBuf_[count],sizeof(sortRecord),recordsPerFile_,fp);
+	  else
+	    records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
+
 	  numRecordsRead_ += recordsPerFile_;
+	  count++;
 	}
 
       fclose(fp);
