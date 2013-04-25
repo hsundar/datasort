@@ -556,25 +556,23 @@ void sortio_Class::manageSortProcess()
 
 		  gt.EndTimer("Read Temp Data");
 
-		  //#define SYNC2
-#ifdef SYNC2
-	      if(!first_entry2 || (first_entry2 && sortGroup != 0) )
-		{
-		  MPI_Status status;
-		  int activate;
-		  int recvRank  = sortRank_ -1;
+		  // notifiy next sort group to commence read...
 
-		  if(sortGroup == 0)
-		    recvRank = sortRank_ + (numSortGroups_ - 1);
+		  if(numSortGroups_ > 1)
+		    {
+		      int destRank = sortRank_ + 1;
+		      int notify = 0;
+		      if(sortGroup == numSortGroups_ - 1)
+			destRank = sortRank_ - (numSortGroups_ - 1);
+		      
+		      if(binRanks_[sortGroup] == 0)
+			grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
+				    sortGroup);
+		      fflush(NULL);
 
-		  if(binRanks_[sortGroup] == 0)
-		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i waiting to begin final sort...\n",sortGroup);
-
-		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag+ibin+1000,SORT_COMM,&status) == MPI_SUCCESS);
-		}
-
-	      first_entry2 = false;
-#endif
+		      if(ibin < (numSortBins_-1))
+			assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
+		    }
 
 		  // do final sort
 
@@ -606,23 +604,7 @@ void sortio_Class::manageSortProcess()
 
 		  //binnedData.clear();
 
-		  // notifiy next sort group to commence read...
 
-		  if(numSortGroups_ > 1)
-		    {
-		      int destRank = sortRank_ + 1;
-		      int notify = 0;
-		      if(sortGroup == numSortGroups_ - 1)
-			destRank = sortRank_ - (numSortGroups_ - 1);
-		      
-		      if(binRanks_[sortGroup] == 0)
-			grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
-				    sortGroup);
-		      fflush(NULL);
-
-		      if(ibin < (numSortBins_-1))
-			assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
-		    }
 
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
