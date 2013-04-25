@@ -22,6 +22,9 @@ void sortio_Class::manageSortProcess()
 {
   assert(initialized_);
 
+  if(sortMode_ <= 0)		// no overlap in naive/read-only mode
+    return;
+
   int messageSize;
   std::vector<sortRecord > sortBuffer;
 

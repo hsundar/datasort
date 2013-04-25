@@ -16,6 +16,9 @@ void sortio_Class::beginRecvTransferProcess()
 {
   assert(initialized_);
 
+  if(sortMode_ <= 0)		// no overlap in naive/read-only mode
+    return;
+
   if(!isXFERTask_)		// rules out any tasks not in XFER_COMM
     return;
   if(xferRank_ < numIoTasks_)	// rules out the sending tasks in XFER_COMM

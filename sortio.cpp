@@ -334,6 +334,16 @@ void sortio_Class::SplitComm()
 {
   assert(initialized_ == true );
 
+  if(sortMode_ <= 0)		// no overlap necessary
+    {
+      // flag all tasks for IO
+      isIOTask_   = true;	       
+      ioRank_     = numLocal_;
+      numIoTasks_ = numTasks_;
+      IO_COMM     = GLOB_COMM;
+      return;
+    }
+
   char hostname[MPI_MAX_PROCESSOR_NAME];
   int len;
 
