@@ -245,8 +245,10 @@ void sortio_Class::ReadFiles()
 	    {
 	      // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
-	      if(sortMode_ <= 0)
+	      if(sortMode_ < 0)
 		read_size = fread(&readBuf_[numRecordsRead_],sizeof(sortRecord),1,fp);
+	      else if(sortMode_ == 0)
+		read_size = fread(&readBuf_[0],sizeof(sortRecord),1,fp);
 	      else
 		read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
 	      
