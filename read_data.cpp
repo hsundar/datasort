@@ -217,8 +217,19 @@ void sortio_Class::ReadFiles()
       if(sortMode_ > 0)
 	buffer         = buffers_[buf_num];
 
-      read_size        = REC_SIZE;
+      int expectedSize;
       records_per_file = 0;
+
+      if(sortMode_ <= 0)
+	{
+	  read_size    = 1;
+	  expectedSize = 1;
+	}
+      else
+	{
+	  read_size    = REC_SIZE;
+	  expectedSize = REC_SIZE;
+	}
 
       // read till end of file (we assume file is even multiple of REC_SIZE)
 
@@ -226,10 +237,11 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
       int count       = 0;
 
+
       //      if(isFirstRead_)
       if(isFirstRead_)
 	{
-	  while(read_size == REC_SIZE)
+	  while(read_size == expectedSize)
 	    {
 	      // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
@@ -245,7 +257,7 @@ void sortio_Class::ReadFiles()
 		assert(read_size == 1);
 	      else
 		assert(read_size == REC_SIZE);
-	      
+
 	      numRecordsRead_++;
 	      records_per_file++;
 	    }
