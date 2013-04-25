@@ -17,8 +17,6 @@ void sortio_Class::Init_Read()
 
   // Initialize read buffers - todo: think about memory pinning here
 
-  //  int fileCount = 0;
-
   if(sortMode_ <= 0)
     {
       size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000/sizeof(sortRecord);
@@ -262,7 +260,6 @@ void sortio_Class::ReadFiles()
 
 	      numRecordsRead_++;
 	      records_per_file++;
-	      //count++;
 	    }
 	}
       else
@@ -275,7 +272,6 @@ void sortio_Class::ReadFiles()
 	    records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
 
 	  numRecordsRead_ += recordsPerFile_;
-	  //ount++;
 	}
 
       fclose(fp);
@@ -320,7 +316,6 @@ void sortio_Class::ReadFiles()
 
   MPI_Barrier(IO_COMM);
 
-#if 1
   if(master)
     grvy_printf(INFO,"[sortio][NAIVESORT] Starting sort process....\n"); 
 
@@ -367,7 +362,7 @@ void sortio_Class::ReadFiles()
   fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
   fclose(fp);
   gt.EndTimer("Final Write");	  
-#endif
+
 
   return;
 
