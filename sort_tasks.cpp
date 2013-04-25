@@ -1,14 +1,6 @@
 #include "sortio.h"
 #define _PROFILE_SORT
 
-#include "binOps/binUtils.h"
-#include "omp_par/ompUtils.h"
-#include "oct/octUtils.h"
-#include "par/sort_profiler.h"
-#include "par/parUtils.h"
-#include "gensort/sortRecord.h"
-
-
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
 // 
@@ -84,7 +76,6 @@ void sortio_Class::manageSortProcess()
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   const size_t binningWaterMark = 1*numSortHosts_;
   //const size_t binningWaterMark = numSortHosts_ / 1.5;
-
 
   //  const size_t binningWaterMark = numSortHosts_/10;
 

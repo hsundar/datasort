@@ -23,6 +23,13 @@
 #include <queue>
 #include <list>
 
+#include "binOps/binUtils.h"
+#include "omp_par/ompUtils.h"
+#include "oct/octUtils.h"
+#include "par/sort_profiler.h"
+#include "par/parUtils.h"
+#include "gensort/sortRecord.h"
+
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include "grvy.h"
@@ -157,6 +164,7 @@ class sortio_Class {
   int      localXferRank_;		// MPI rank in GLOB_COMM for the XFER task on same host
   int      numSortThreads_;		// number of final sort threads (OMP)
   MPI_Comm SORT_COMM;		        // MPI communicator for data sort tasks
+  std::vector<sortRecord> readBuf_;	// read buffer for use in naive sort mode
 
   // Binning tasks which overlap with SORT
 
