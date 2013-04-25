@@ -19,7 +19,7 @@ void sortio_Class::Init_Read()
 
   if(sortMode_ <= 0)
     {
-      size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000/sizeof(sortRecord);
+      size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000L*1000L/sizeof(sortRecord);
       readBuf_.resize(bufSize);
     }
   else
@@ -246,7 +246,13 @@ void sortio_Class::ReadFiles()
 	      // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
 	      if(sortMode_ < 0)
-		read_size = fread(&readBuf_[numRecordsRead_],sizeof(sortRecord),1,fp);
+		{
+		  if(numRecordsRead_ >= readBuf_.size())
+		    printf("too big, max size = %zi\n",readBuf_.size());
+
+		  assert(numRecordsRead_ < readBuf_.size());
+		  read_size = fread(&readBuf_[numRecordsRead_],sizeof(sortRecord),1,fp);
+		}
 	      else if(sortMode_ == 0)
 		read_size = fread(&readBuf_[0],sizeof(sortRecord),1,fp);
 	      else
@@ -339,7 +345,10 @@ void sortio_Class::ReadFiles()
       fclose(fp);
     }
 
-      //grvy_printf(INFO,"[sortio][NAIVESORT] Calling final sort with input size = %zi\n",readBuf_.size());
+  char hostname[MPI_MAX_PROCESSOR_NAME];
+  int len;
+  MPI_Get_processor_name(hostname, &len);
+  grvy_printf(INFO,"[sortio][NAIVESORT][%.4i] %s\n",ioRank_,hostname);
 
   //omp_par::merge_sort(&readBuf_[0],&readBuf_[readBuf_.size()]);
 

@@ -75,6 +75,7 @@ class sortio_Class {
   void overrideNumFiles      (int nfiles);
   void overrideNumIOHosts    (int hosts);
   void overrideNumSortThreads(int numThreads);
+  void overrideNumSortGroups (int numGroups);
   void ReadFiles(); 
   void SplitComm();
   void Summarize();
@@ -97,6 +98,7 @@ class sortio_Class {
   bool overrideNumFiles_;                // Override num_files setting?
   bool overrideNumIOHosts_;              // Override num_io_hosts setting?
   bool overrideNumSortThreads_;          // Override num_sort_threads setting?
+  bool overrideNumSortGroups_;           // Override num_sort_groups setting?
   bool random_read_offset_;              // Randomly change rank ordering for read to minimize cache effects?
   bool mpi_initialized_by_sortio;        // did we have to call MPI_Init()?
 

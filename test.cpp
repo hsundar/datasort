@@ -14,6 +14,8 @@ int main(int argc, char *argv[], char *env[])
     sort_IO.overrideNumIOHosts(atoi(argv[2]));
   if(argc > 3)
     sort_IO.overrideNumSortThreads(atoi(argv[3]));
+  if(argc > 4)
+    sort_IO.overrideNumSortGroups(atoi(argv[4]));
 
   sort_IO.Initialize("input.dat",MPI_COMM_WORLD);
   sort_IO.SplitComm();

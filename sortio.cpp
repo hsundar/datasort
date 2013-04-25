@@ -17,6 +17,7 @@ sortio_Class::sortio_Class()
   overrideNumFiles_         = false;
   overrideNumIOHosts_       = false;
   overrideNumSortThreads_   = false;
+  overrideNumSortGroups_    = false;
   random_read_offset_       = false;
   mpi_initialized_by_sortio = false;
   isIOTask_                 = false;
@@ -64,6 +65,14 @@ void sortio_Class::overrideNumSortThreads(int numThreads)
 {
   overrideNumSortThreads_ = true;
   numSortThreads_         = numThreads;
+  return;
+}
+
+
+void sortio_Class::overrideNumSortGroups(int numGroups)
+{
+  overrideNumSortGroups_ = true;
+  numSortGroups_         = numGroups;
   return;
 }
 
@@ -225,8 +234,9 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/max_messages_watermark", 10);
       iparse.Register_Var("sortio/verify_mode",             0);
       iparse.Register_Var("sortio/sort_mode",               1);
-      iparse.Register_Var("sortio/num_sort_groups",         1);
       iparse.Register_Var("sortio/num_sort_bins",          10);
+      if(!overrideNumSortGroups_)
+	iparse.Register_Var("sortio/num_sort_groups",       1);
       if(!overrideNumSortThreads_)
 	iparse.Register_Var("sortio/num_sort_threads",      1);
 
@@ -237,8 +247,12 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/output_dir",            &outputDir_)             != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
-      assert( iparse.Read_Var("sortio/num_sort_groups",       &numSortGroups_        ) != 0 );
-      assert( iparse.Read_Var("sortio/num_sort_threads",      &numSortThreads_       ) != 0 );
+
+      if(!overrideNumSortGroups_)
+	assert( iparse.Read_Var("sortio/num_sort_groups",     &numSortGroups_        ) != 0 );
+      if(!overrideNumSortThreads_)
+	assert( iparse.Read_Var("sortio/num_sort_threads",      &numSortThreads_       ) != 0 );
+
       assert( iparse.Read_Var("sortio/num_sort_bins",         &numSortBins_          ) != 0 );
       assert( iparse.Read_Var("sortio/max_read_buffers",      &MAX_READ_BUFFERS)       != 0 );
       assert( iparse.Read_Var("sortio/max_file_size_in_mbs"  ,&MAX_FILE_SIZE_IN_MBS)   != 0 );
