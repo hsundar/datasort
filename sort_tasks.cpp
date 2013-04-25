@@ -71,11 +71,8 @@ void sortio_Class::manageSortProcess()
   messageSize = syncFlags[1];	// raw buffersize passed 
 
   bool needBinning              = true;
-  //  const int numBins             = 10;  
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   const size_t binningWaterMark = 1*numSortHosts_;
-  //const size_t binningWaterMark = numSortHosts_ / 1.5;
-
   //  const size_t binningWaterMark = numSortHosts_/10;
 
   char tmpFilename[1024];	     // location for tmp file
@@ -135,14 +132,7 @@ void sortio_Class::manageSortProcess()
 	    localData    = 1;
 	    syncFlags[0] = 0;
 
-	    //filesOnHandFirst++;
-	    //int filesOnHandGlobal;
-	    //int localSize = sortBuffer.size()/numRecordsPerXfer;
-	    //int filesOnHand;
-	
 	    assert (MPI_Allreduce(&localData,&globalData, 1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
-	    //	    assert (MPI_Allreduce(&filesOnHandFirst,&filesOnHandGlobal,1,MPI_INT,MPI_SUM,
-	    //				  BIN_COMMS_[0]) == MPI_SUCCESS);
 	
 	    numFilesReceived += globalData;
 
@@ -228,7 +218,7 @@ void sortio_Class::manageSortProcess()
 
   // Transfer ownership to next BIN group
 
-  if(isBinTask_[0])
+  if(isBinTask_[0] && numSortGroups_ > 1)
     cycleBinGroup(numFilesReceived,0);
   
   int iterCount = 0;
@@ -247,13 +237,14 @@ void sortio_Class::manageSortProcess()
       if(binNum_ < 0)	
 	break;
 
-      numFilesReceived = waitForActivation();
+      if(numSortGroups_ > 1)
+	numFilesReceived = waitForActivation();
 
       // tear-down procedure, notify remaining bin groups that we have
       // processed all files, we send a negative count here and count
       // down till the final group is terminated.
 
-      if(numFilesReceived == numFilesTotal_)
+      if( (numFilesReceived == numFilesTotal_) )
 	{
 	  if(numSortGroups_ >= 3)
 	    {
@@ -326,7 +317,6 @@ void sortio_Class::manageSortProcess()
 
 	  int threshold = 0;
 
-#if 1
 	  //if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
 	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
 	    {
@@ -344,7 +334,6 @@ void sortio_Class::manageSortProcess()
 	      threshold = numFilesTotal_ - numFilesReceived;
 	      //threshold = 0;
 	    }
-#endif
 
 	  //#define OLD
 #ifdef OLD
@@ -356,7 +345,8 @@ void sortio_Class::manageSortProcess()
 
 	      // Transfer ownership to next BIN comm
 
-	      cycleBinGroup(numFilesReceived,binNum_);
+	      if(numSortGroups_ > 1)
+		cycleBinGroup(numFilesReceived,binNum_);
 
 	      if(sortMode_ > 0)
 		{
@@ -383,7 +373,6 @@ void sortio_Class::manageSortProcess()
 		  tmpWriteSizes.push_back(writeCounts);
 	      
 		  sortBuffer.clear();
-		  //		  filesOnHand = 0;
 		}
 	    }
 
@@ -496,20 +485,21 @@ void sortio_Class::manageSortProcess()
 	      
 	      // non-master tasks wait for notification to proceed
 
-	      if(!first_entry || (first_entry && sortGroup != 0) )
-		{
-		  MPI_Status status;
-		  int activate;
-		  int recvRank  = sortRank_ -1;
-
-		  if(sortGroup == 0)
-		    recvRank = sortRank_ + (numSortGroups_ - 1);
-
-		  if(binRanks_[sortGroup] == 0)
-		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i waiting to begin local read...\n",sortGroup);
-
-		  assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag1+ibin,SORT_COMM,&status) == MPI_SUCCESS);
-		}
+	      if(numSortGroups_ > 1)
+		if(!first_entry || (first_entry && sortGroup != 0) )
+		  {
+		    MPI_Status status;
+		    int activate;
+		    int recvRank  = sortRank_ -1;
+		    
+		    if(sortGroup == 0)
+		      recvRank = sortRank_ + (numSortGroups_ - 1);
+		    
+		    if(binRanks_[sortGroup] == 0)
+		      grvy_printf(INFO,"[sortio][FINALSORT] Group %i waiting to begin local read...\n",sortGroup);
+		    
+		    assert( MPI_Recv(&activate,1,MPI_INT,recvRank,tag1+ibin,SORT_COMM,&status) == MPI_SUCCESS);
+		  }
 
 	      first_entry = false;
 		   
@@ -617,19 +607,21 @@ void sortio_Class::manageSortProcess()
 
 		  // notifiy next sort group to commence read...
 
-		  int destRank = sortRank_ + 1;
-		  int notify = 0;
-		  if(sortGroup == numSortGroups_ - 1)
-		    destRank = sortRank_ - (numSortGroups_ - 1);
+		  if(numSortGroups_ > 1)
+		    {
+		      int destRank = sortRank_ + 1;
+		      int notify = 0;
+		      if(sortGroup == numSortGroups_ - 1)
+			destRank = sortRank_ - (numSortGroups_ - 1);
+		      
+		      if(binRanks_[sortGroup] == 0)
+			grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
+				    sortGroup);
+		      fflush(NULL);
 
-		  if(binRanks_[sortGroup] == 0)
-		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin read...\n",
-				sortGroup);
-		  fflush(NULL);
-
-		  if(ibin < (numSortBins_-1))
-		    assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
-
+		      if(ibin < (numSortBins_-1))
+			assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
+		    }
 
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);

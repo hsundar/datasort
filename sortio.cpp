@@ -264,7 +264,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( numSortBins_         > 0);
       assert( MAX_READ_BUFFERS     > 0);
       assert( MAX_FILE_SIZE_IN_MBS > 0);
-      assert( (numSortGroups_  >= 2) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
+      assert( (numSortGroups_  >= 1) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
       assert( (numSortThreads_ >  0) && (numSortThreads_ < 16) ); 
       assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
