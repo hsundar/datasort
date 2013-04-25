@@ -583,7 +583,7 @@ void sortio_Class::manageSortProcess()
 
 		  fflush(NULL);
 
-		  std::vector<sortRecord> out;
+		  //		  std::vector<sortRecord> out;
 	      
 		  omp_set_num_threads(numSortThreads_);
 
@@ -596,14 +596,15 @@ void sortio_Class::manageSortProcess()
 
 		  fflush(NULL);
 	      
-		  par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[sortGroup]);
+		  //par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[sortGroup]);
+		  par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);
 		  //par::sampleSort(binnedData, out, BIN_COMMS_[0]);
 		  gt.EndTimer("Final Sort");
 	      
 		  if(binRanks_[sortGroup] == 0)
 		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i finished sort\n",sortGroup);
 
-		  binnedData.clear();
+		  //binnedData.clear();
 
 		  // notifiy next sort group to commence read...
 
@@ -656,7 +657,7 @@ void sortio_Class::manageSortProcess()
 		  FILE *fp = fopen(tmpFilename,"wb");
 		  assert(fp != NULL);
 		  
-		  fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
+		  fwrite(&binnedData[0],sizeof(sortRecord),binnedData.size(),fp);
 		  fclose(fp);
 		  gt.EndTimer("Final Write");	  
 		  

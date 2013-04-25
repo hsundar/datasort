@@ -329,7 +329,7 @@ void sortio_Class::ReadFiles()
 
 
   readBuf_.resize( numRecordsRead_ );
-  std::vector<sortRecord> out;
+  //  std::vector<sortRecord> out;
 
   if(verifyMode_ > 0 )
     {
@@ -353,7 +353,8 @@ void sortio_Class::ReadFiles()
   //omp_par::merge_sort(&readBuf_[0],&readBuf_[readBuf_.size()]);
 
   gt.BeginTimer("Naive - QuickSort");
-  par::HyperQuickSort_kway(readBuf_, out, GLOB_COMM);
+  //par::HyperQuickSort_kway(readBuf_, out, GLOB_COMM);
+  par::HyperQuickSort_kway(readBuf_,GLOB_COMM);
   gt.EndTimer("Naive - QuickSort");
 
   if(master)
@@ -370,7 +371,7 @@ void sortio_Class::ReadFiles()
   FILE *fp = fopen(tmpFilename,"wb");
   assert(fp != NULL);
 		  
-  fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
+  fwrite(&readBuf_[0],sizeof(sortRecord),readBuf_.size(),fp);
   fclose(fp);
   gt.EndTimer("Final Write");	  
 
