@@ -183,7 +183,6 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       int provided;
 
       MPI_Init_thread(NULL,NULL,MPI_THREAD_FUNNELED,&provided);
-      //MPI_Init_thread(NULL,NULL,MPI_THREAD_MULTIPLE,&provided);
       mpi_initialized_by_sortio = true;
     }
 

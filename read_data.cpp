@@ -17,6 +17,8 @@ void sortio_Class::Init_Read()
 
   // Initialize read buffers - todo: think about memory pinning here
 
+  //  int fileCount = 0;
+
   if(sortMode_ <= 0)
     {
       size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000/sizeof(sortRecord);
@@ -163,8 +165,9 @@ void sortio_Class::ReadFiles()
 
       if(file_suffix >= numFilesTotal_)
 	{
-	  gt.EndTimer("Raw Read");
-	  return;
+	  break;
+	  //gt.EndTimer("Raw Read");
+	  //return;
 	}
 
       s_id << file_suffix;
@@ -235,18 +238,17 @@ void sortio_Class::ReadFiles()
 
       const int MAX_RETRIES = 5;
       int num_retries = 0;
-      int count       = 0;
 
 
       //      if(isFirstRead_)
-      if(isFirstRead_)
+      if(true)
 	{
 	  while(read_size == expectedSize)
 	    {
 	      // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
 
 	      if(sortMode_ <= 0)
-		read_size = fread(&readBuf_[records_per_file],sizeof(sortRecord),1,fp);
+		read_size = fread(&readBuf_[numRecordsRead_],sizeof(sortRecord),1,fp);
 	      else
 		read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
 	      
@@ -260,20 +262,20 @@ void sortio_Class::ReadFiles()
 
 	      numRecordsRead_++;
 	      records_per_file++;
+	      //count++;
 	    }
-	  count++;
 	}
       else
 	{
 	  if(sortMode_ < 0)
-	    records_per_file = fread(&readBuf_[count],sizeof(sortRecord),recordsPerFile_,fp);
+	    records_per_file = fread(&readBuf_[numRecordsRead_],sizeof(sortRecord),recordsPerFile_,fp);
 	  else if(sortMode_ == 0)
 	    records_per_file = fread(&readBuf_[0],sizeof(sortRecord),recordsPerFile_,fp);
 	  else
 	    records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
 
 	  numRecordsRead_ += recordsPerFile_;
-	  count++;
+	  //ount++;
 	}
 
       fclose(fp);
@@ -316,15 +318,33 @@ void sortio_Class::ReadFiles()
 
   // do sort here if we are in naive mode
 
-  MPI_Barrier(GLOB_COMM);
+  MPI_Barrier(IO_COMM);
 
+#if 1
   if(master)
     grvy_printf(INFO,"[sortio][NAIVESORT] Starting sort process....\n"); 
 
 
-
   readBuf_.resize( numRecordsRead_ );
   std::vector<sortRecord> out;
+
+  if(verifyMode_ > 0 )
+    {
+      if(master)
+	grvy_printf(INFO,"[sortio][NAIVESORT] - dumping input data...\n");
+
+      char filename[1024];
+      sprintf(filename,"./partfromread_%i",ioRank_);
+      FILE *fp = fopen(filename,"wb");
+      assert(fp != NULL);
+	      
+      fwrite(&readBuf_[0],sizeof(sortRecord),readBuf_.size(),fp);
+      fclose(fp);
+    }
+
+      //grvy_printf(INFO,"[sortio][NAIVESORT] Calling final sort with input size = %zi\n",readBuf_.size());
+
+  //omp_par::merge_sort(&readBuf_[0],&readBuf_[readBuf_.size()]);
 
   gt.BeginTimer("Naive - QuickSort");
   par::HyperQuickSort_kway(readBuf_, out, GLOB_COMM);
@@ -347,6 +367,7 @@ void sortio_Class::ReadFiles()
   fwrite(&out[0],sizeof(sortRecord),out.size(),fp);
   fclose(fp);
   gt.EndTimer("Final Write");	  
+#endif
 
   return;
 
