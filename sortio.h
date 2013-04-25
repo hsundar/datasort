@@ -23,6 +23,7 @@
 #include <queue>
 #include <list>
 
+#define _PROFILE_SORT
 #include "binOps/binUtils.h"
 #include "omp_par/ompUtils.h"
 #include "oct/octUtils.h"

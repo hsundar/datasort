@@ -1,5 +1,4 @@
 #include "sortio.h"
-#define _PROFILE_SORT
 
 // --------------------------------------------------------------------
 // manageSortTasksWork(): 
