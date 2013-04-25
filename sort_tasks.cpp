@@ -80,6 +80,8 @@ void sortio_Class::manageSortProcess()
   //  const int numBins             = 10;  
   const int numRecordsPerXfer   = messageSize/sizeof(sortRecord);
   const size_t binningWaterMark = 1*numSortHosts_;
+  //const size_t binningWaterMark = numSortHosts_ / 1.5;
+
 
   //  const size_t binningWaterMark = numSortHosts_/10;
 
@@ -320,14 +322,9 @@ void sortio_Class::manageSortProcess()
 	  dataLocal[0] = localData;
 	  dataLocal[1] = localSize;
 
-#ifdef ORIG_THRESHOLD
-	  assert (MPI_Allreduce(&localData,&globalData,1,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
-#else
 	  assert (MPI_Allreduce(dataLocal,dataGlobal,2,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
-	  globalData = dataGlobal[0];
 
-	  //	  int filesonHand = dataGlobal[1];
-#endif
+	  globalData = dataGlobal[0];
 
 	  numFilesReceived += globalData;
 	  filesOnHand      += globalData;
@@ -337,14 +334,16 @@ void sortio_Class::manageSortProcess()
 	  int threshold = 0;
 
 #if 1
-	  if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
-	    //	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
+	  //if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
+	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
 	    {
 	      //threshold = numSortHosts_ / 4;
 	      //threshold = numSortHosts_ / 2;
-	      threshold = numSortHosts_ / 1.5;
+	      //threshold = numSortHosts_ / 1.5;
 	      //threshold = numSortHosts_;
+	      threshold = numSortHosts_-1;
 	      //threshold = numSortBins_;
+	      //threshold = 1.5*numSortHosts_;
 	    }
 	  else 
 	    {
@@ -352,15 +351,7 @@ void sortio_Class::manageSortProcess()
 	      threshold = numFilesTotal_ - numFilesReceived;
 	      //threshold = 0;
 	    }
-#else
-
-#endof
-
 #endif
-
-#ifndef ORIG_THRESHOLD
-	  //globalData = filesOnHand;
-#endif	  
 
 	  //#define OLD
 #ifdef OLD
@@ -430,7 +421,7 @@ void sortio_Class::manageSortProcess()
   if(binNum_ >= 0)
     grvy_printf(DEBUG,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
 
-  MPI_Barrier(SORT_COMM);
+  //MPI_Barrier(SORT_COMM);
 
   if(isMasterSort_)
     grvy_printf(INFO,"[sortio][SORT][%.4i]: numFilesReceived = %i\n",sortRank_,numFilesTotal_);
@@ -471,10 +462,7 @@ void sortio_Class::manageSortProcess()
       //      assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
       
       if(isMasterSort_)
-	{
-	  //	  grvy_printf(INFO,"[sortio][FINALSORT] Total # of records written = %i\n",numWrittenGlobal);
-	  grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
-	}
+	grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
     }
 
   // We are almost there: re-read binned data to complete final sort
@@ -585,9 +573,7 @@ void sortio_Class::manageSortProcess()
 
 		  gt.EndTimer("Read Temp Data");
 
-
 		  //#define SYNC2
-
 #ifdef SYNC2
 	      if(!first_entry2 || (first_entry2 && sortGroup != 0) )
 		{
@@ -693,7 +679,6 @@ void sortio_Class::manageSortProcess()
 
 		}
 
-
 	    } // end loop over numSortBins_
 
 	  // verify we re-read in all the data
@@ -715,9 +700,6 @@ void sortio_Class::manageSortProcess()
   // done
 
   MPI_Barrier(SORT_COMM);
-
-  //if(isBinTask_[0])
-  //    printResults(BIN_COMMS_[0]);
 
   if(isLocalSortMaster_)
     {

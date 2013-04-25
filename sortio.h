@@ -9,6 +9,8 @@
 #ifndef SORTIO_H_
 #define SORTIO_H_
 
+//#define NDEBUG 
+
 #include "mpi.h"
 #include <string>
 #include <map>

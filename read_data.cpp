@@ -202,27 +202,29 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
 
       //      if(isFirstRead_)
-      if(true)
-	while(read_size == REC_SIZE)
-	  {
-	    // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
-	    
-	    read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
-	    //read_size = fread(rec_buf,1,REC_SIZE,fp);
-
-	    if(read_size == 0)
-	      break;
-	    
-	    assert(read_size == REC_SIZE);
-	    
-	    numRecordsRead_++;
-	    records_per_file++;
-	  }
+      if(isFirstRead_)
+	{
+	  while(read_size == REC_SIZE)
+	    {
+	      // todo: test a blocked read here, say 100, 1000, 10000, etc REC_SIZEs
+	      
+	      read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
+	      
+	      if(read_size == 0)
+		break;
+	      
+	      assert(read_size == REC_SIZE);
+	      
+	      numRecordsRead_++;
+	      records_per_file++;
+	    }
+	}
       else
 	{
 	  records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
-	  grvy_printf(INFO,"[sortio][IO/Read][%.4i] read size = %zi (%i)\n",
-		    ioRank_,read_size,recordsPerFile_);
+	  numRecordsRead_ += recordsPerFile_;
+	  //grvy_printf(INFO,"[sortio][IO/Read][%.4i] read size = %zi (%i)\n",
+	  //ioRank_,read_size,recordsPerFile_);
 	  //assert(read_size == recordsPerFile_);
 	  //	  records_per_file =
 	}
