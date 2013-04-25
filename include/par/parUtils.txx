@@ -33,7 +33,7 @@
 #endif
 #endif
 
-#define KWAY 16  // karl testing
+#define KWAY 32  // karl testing
 
 #ifndef KWAY
 #define KWAY 8
