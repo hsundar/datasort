@@ -253,8 +253,10 @@ void sortio_Class::ReadFiles()
 	}
       else
 	{
-	  if(sortMode_ <= 0)
+	  if(sortMode_ < 0)
 	    records_per_file = fread(&readBuf_[count],sizeof(sortRecord),recordsPerFile_,fp);
+	  else if(sortMode_ == 0)
+	    records_per_file = fread(&readBuf_[0],sizeof(sortRecord),recordsPerFile_,fp);
 	  else
 	    records_per_file = fread(&buffer[0],REC_SIZE,recordsPerFile_,fp);
 
