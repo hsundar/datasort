@@ -266,7 +266,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( MAX_FILE_SIZE_IN_MBS > 0);
       assert( (numSortGroups_  >= 1) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
       assert( (numSortThreads_ >  0) && (numSortThreads_ < 16) ); 
-      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 20*1024 ); // Assume less than 20 GB/host
+      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 30*1024 ); // Assume less than 30 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
 
       grvy_printf(INFO,"[sortio]\n");
@@ -465,8 +465,10 @@ void sortio_Class::SplitComm()
 
       // Final sort does stalls with non-powers of 2, verify now.
 
+#if 0
       if(sortMode_ > 1)
 	assert(isPowerOfTwo(numSortHosts_));
+#endif
 
       // quick sanity checks and assumptions
 

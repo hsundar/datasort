@@ -604,8 +604,6 @@ void sortio_Class::manageSortProcess()
 
 		  //binnedData.clear();
 
-
-
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
 

@@ -238,7 +238,7 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
 
 
-      //      if(isFirstRead_)
+      //if(isFirstRead_)
       if(true)
 	{
 	  while(read_size == expectedSize)
@@ -360,7 +360,7 @@ void sortio_Class::ReadFiles()
   if(master)
     grvy_printf(INFO,"[sortio][NAIVESORT] Finished sort\n");
 
-  readBuf_.clear();
+  //  readBuf_.clear();
 
   gt.BeginTimer("Final Write");	  
 

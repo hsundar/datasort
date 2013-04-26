@@ -93,7 +93,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
       assert (MPI_Gather(&localCount,1,MPI_INTEGER,fullQueueCounts.data(),1,MPI_INTEGER,0,IO_COMM) == MPI_SUCCESS);
 
-      // Assing destination ranks and message tags (master IO rank is
+      // Assign destination ranks and message tags (master IO rank is
       // tasked with this bookkeeping)
 
       int numBuffersToTransfer = 0;
