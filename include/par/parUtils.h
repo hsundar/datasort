@@ -473,7 +473,9 @@ namespace par {
     @param comm the communicator
     */
   template<typename T>
-    int sampleSort(std::vector<T>& in, std::vector<T> & out, MPI_Comm comm); 
+    int sampleSort_largemem(std::vector<T>& in, std::vector<T> & out, MPI_Comm comm); 
+  template<typename T>
+    int sampleSort(std::vector<T>& arr, MPI_Comm comm); 
 
   /**
     @brief Removes duplicates in parallel. If the input is not sorted, sample sort will be called 

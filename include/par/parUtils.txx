@@ -34,6 +34,7 @@
 #endif
 
 #define KWAY 32  // karl testing
+//#define KWAY 64  // karl testing
 
 #ifndef KWAY
 #define KWAY 8
@@ -3060,9 +3061,289 @@ namespace par {
     }//end function
 // */
 
+  /// ----------- low mem verison - sc13 -----------------------------------
 
   template<typename T>
-    int sampleSort(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm){ 
+    int sampleSort(std::vector<T>& arr, MPI_Comm comm){ 
+#ifdef __PROFILE_WITH_BARRIER__
+      MPI_Barrier(comm);
+#endif
+      PROF_SORT_BEGIN
+
+#ifdef _PROFILE_SORT
+	 		total_sort.start();
+#endif
+
+     int npes;
+
+      MPI_Comm_size(comm, &npes);
+
+      assert(arr.size());
+
+      if (npes == 1) {
+#ifdef _PROFILE_SORT
+				seq_sort.start();
+#endif
+        omp_par::merge_sort(&arr[0],&arr[arr.size()]);
+#ifdef _PROFILE_SORT
+  			seq_sort.stop();
+		 		total_sort.stop();
+#endif      
+			  PROF_SORT_END
+      } 
+
+      std::vector<T>  splitters;
+      std::vector<T>  allsplitters;
+
+      int myrank;
+      MPI_Comm_rank(comm, &myrank);
+
+      DendroIntL nelem = arr.size();
+      DendroIntL nelemCopy = nelem;
+      DendroIntL totSize;
+      par::Mpi_Allreduce<DendroIntL>(&nelemCopy, &totSize, 1, MPI_SUM, comm);
+
+      DendroIntL npesLong = npes;
+      const DendroIntL FIVE = 5;
+
+      if(totSize < (FIVE*npesLong*npesLong)) {
+        if(!myrank) {
+          std::cout <<" Using bitonic sort since totSize < (5*(npes^2)). totSize: "
+            <<totSize<<" npes: "<<npes <<std::endl;
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-1 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        MPI_Comm new_comm;
+        if(totSize < npesLong) {
+          if(!myrank) {
+            std::cout<<" Input to sort is small. splittingComm: "
+              <<npes<<" -> "<< totSize<<std::endl;
+          }
+          par::splitCommUsingSplittingRank(static_cast<int>(totSize), &new_comm, comm);
+        } else {
+          new_comm = comm;
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-2 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        if(!arr.empty()) {
+          par::bitonicSort<T>(arr, new_comm);
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-3 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        PROF_SORT_END
+      }// end if
+
+#ifdef __DEBUG_PAR__
+      if(!myrank) {
+        std::cout<<"Using sample sort to sort nodes. n/p^2 is fine."<<std::endl;
+      }
+#endif
+
+      //Re-part arr so that each proc. has atleast p elements.
+#ifdef _PROFILE_SORT
+  		sort_partitionw.start();
+#endif
+			par::partitionW<T>(arr, NULL, comm);
+#ifdef _PROFILE_SORT
+  		sort_partitionw.stop();
+#endif
+      nelem = arr.size();
+
+#ifdef _PROFILE_SORT
+			seq_sort.start();
+#endif
+      omp_par::merge_sort(&arr[0],&arr[arr.size()]);
+#ifdef _PROFILE_SORT
+			seq_sort.stop();
+#endif
+				
+      std::vector<T> sendSplits(npes-1);
+      splitters.resize(npes);
+
+      #pragma omp parallel for
+      for(int i = 1; i < npes; i++)         {
+        sendSplits[i-1] = arr[i*nelem/npes];        
+      }//end for i
+
+#ifdef _PROFILE_SORT
+ 		  sample_sort_splitters.start();
+#endif
+      // sort sendSplits using bitonic ...
+      par::bitonicSort<T>(sendSplits,comm);
+#ifdef _PROFILE_SORT
+ 		  sample_sort_splitters.stop();
+#endif
+				
+				
+#ifdef _PROFILE_SORT
+	 		sample_prepare_scatter.start();
+#endif				
+      // All gather with last element of splitters.
+      T* sendSplitsPtr = NULL;
+      T* splittersPtr = NULL;
+      if(sendSplits.size() > static_cast<unsigned int>(npes-2)) {
+        sendSplitsPtr = &(*(sendSplits.begin() + (npes -2)));
+      }
+      if(!splitters.empty()) {
+        splittersPtr = &(*(splitters.begin()));
+      }
+      par::Mpi_Allgather<T>(sendSplitsPtr, splittersPtr, 1, comm);
+
+      sendSplits.clear();
+
+      int *sendcnts = new int[npes];
+      assert(sendcnts);
+
+      int * recvcnts = new int[npes];
+      assert(recvcnts);
+
+      int * sdispls = new int[npes];
+      assert(sdispls);
+
+      int * rdispls = new int[npes];
+      assert(rdispls);
+
+      #pragma omp parallel for
+      for(int k = 0; k < npes; k++){
+        sendcnts[k] = 0;
+      }
+
+      {
+        int omp_p=omp_get_max_threads();
+        int* proc_split = new int[omp_p+1];
+        DendroIntL* lst_split_indx = new DendroIntL[omp_p+1];
+        proc_split[0]=0;
+        lst_split_indx[0]=0;
+        lst_split_indx[omp_p]=nelem;
+        #pragma omp parallel for
+        for(int i=1;i<omp_p;i++){
+          //proc_split[i] = seq::BinSearch(&splittersPtr[0],&splittersPtr[npes-1],arr[i*nelem/omp_p],std::less<T>());
+          proc_split[i] = std::upper_bound(&splittersPtr[0],&splittersPtr[npes-1],arr[i*(size_t)nelem/omp_p],std::less<T>())-&splittersPtr[0];
+          if(proc_split[i]<npes-1){
+            //lst_split_indx[i]=seq::BinSearch(&arr[0],&arr[nelem],splittersPtr[proc_split[i]],std::less<T>());
+            lst_split_indx[i]=std::upper_bound(&arr[0],&arr[nelem],splittersPtr[proc_split[i]],std::less<T>())-&arr[0];
+          }else{
+            proc_split[i]=npes-1;
+            lst_split_indx[i]=nelem;
+          }
+        }
+        #pragma omp parallel for
+        for (int i=0;i<omp_p;i++){
+          int sendcnts_=0;
+          int k=proc_split[i];
+          for (DendroIntL j = lst_split_indx[i]; j < lst_split_indx[i+1]; j++) {
+            if (arr[j] <= splitters[k]) {
+              sendcnts_++;
+            } else{
+              if(sendcnts_>0)
+                sendcnts[k]=sendcnts_;
+              sendcnts_=0;
+              k = seq::UpperBound<T>(npes-1, splittersPtr, k+1, arr[j]);
+              if (k == (npes-1) ){
+                //could not find any splitter >= arr[j]
+                sendcnts_ = (nelem - j);
+                break;
+              } else {
+                assert(k < (npes-1));
+                assert(splitters[k] >= arr[j]);
+                sendcnts_++;
+              }
+            }//end if-else
+          }//end for j
+          if(sendcnts_>0)
+            sendcnts[k]=sendcnts_;
+        }
+        delete [] lst_split_indx;
+        delete [] proc_split;
+      }
+
+      par::Mpi_Alltoall<int>(sendcnts, recvcnts, 1, comm);
+
+      sdispls[0] = 0; rdispls[0] = 0;
+//      for (int j = 1; j < npes; j++){
+//        sdispls[j] = sdispls[j-1] + sendcnts[j-1];
+//        rdispls[j] = rdispls[j-1] + recvcnts[j-1];
+//      }
+      omp_par::scan(sendcnts,sdispls,npes);
+      omp_par::scan(recvcnts,rdispls,npes);
+
+      DendroIntL nsorted = rdispls[npes-1] + recvcnts[npes-1];
+      std::vector<T> SortedElem(nsorted);
+
+      T* arrPtr = NULL;
+      T* SortedElemPtr = NULL;
+      if(!arr.empty()) {
+        arrPtr = &(*(arr.begin()));
+      }
+      if(!SortedElem.empty()) {
+        SortedElemPtr = &(*(SortedElem.begin()));
+      }
+#ifdef _PROFILE_SORT
+	 		sample_prepare_scatter.stop();
+#endif
+				
+#ifdef _PROFILE_SORT
+	 		sample_do_all2all.start();
+#endif							
+      // par::Mpi_Alltoallv_dense<T>(arrPtr, sendcnts, sdispls, SortedElemPtr, recvcnts, rdispls, comm);
+      Mpi_Alltoallv(arrPtr, sendcnts, sdispls, SortedElemPtr, recvcnts, rdispls, comm);
+#ifdef _PROFILE_SORT
+	 		sample_do_all2all.stop();
+#endif							
+      arr.swap(SortedElem);
+      SortedElem.clear();
+      delete [] sendcnts;
+      sendcnts = NULL;
+
+      delete [] recvcnts;
+      recvcnts = NULL;
+
+      delete [] sdispls;
+      sdispls = NULL;
+
+      delete [] rdispls;
+      rdispls = NULL;
+
+#ifdef _PROFILE_SORT
+	 		seq_sort.start();
+#endif
+      omp_par::merge_sort(&arr[0], &arr[nsorted]);
+#ifdef _PROFILE_SORT
+	 		seq_sort.stop();
+#endif
+
+
+#ifdef _PROFILE_SORT
+	 		total_sort.stop();
+#endif
+      PROF_SORT_END
+    }//end function
+
+  //------------------------------------------------------------------------
+
+  template<typename T>
+    int sampleSort_largemem(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm){ 
 #ifdef __PROFILE_WITH_BARRIER__
       MPI_Barrier(comm);
 #endif
