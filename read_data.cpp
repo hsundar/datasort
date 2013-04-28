@@ -315,7 +315,15 @@ void sortio_Class::ReadFiles()
 
   isReadFinished_ = true;
 
+  MPI_Barrier(IO_COMM);
+
   gt.EndTimer("Raw Read");
+
+  if(master)
+    {
+      grvy_printf(INFO,"[sortio][IO/Read]: last processined done with full read\n");
+      grvy_printf(INFO,"[sortio][IO/Read]: Time for raw read  = %e\n",gt.ElapsedSeconds("Raw Read"));
+    }
 
   if(sortMode_ != -1)
     return;
@@ -374,6 +382,8 @@ void sortio_Class::ReadFiles()
   fwrite(&readBuf_[0],sizeof(sortRecord),readBuf_.size(),fp);
   fclose(fp);
   gt.EndTimer("Final Write");	  
+
+
 
 
   return;

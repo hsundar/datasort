@@ -320,6 +320,7 @@ void sortio_Class::manageSortProcess()
 	  //if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
 	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
 	    {
+	      //threshold = numSortHosts_ / 10;
 	      //threshold = numSortHosts_ / 4;
 	      //threshold = numSortHosts_ / 2;
 	      //threshold = numSortHosts_ / 1.5;
@@ -452,7 +453,18 @@ void sortio_Class::manageSortProcess()
   if(sortMode_ > 1)
     {
 
-      //MPI_Barrier(SORT_COMM);
+      MPI_Barrier(SORT_COMM);
+
+      if(isMasterSort_)
+	{
+	  grvy_printf(INFO,"[sortio][FINALSORT][%.4i]: Starting final sort\n",sortRank_);
+	  grvy_printf(INFO,"[sortio][SORT] Total Time for data receive process = %e\n",
+		      gt.ElapsedSeconds("Sort/Recv") + 
+		      gt.ElapsedSeconds("Bucket and Write") + 
+		      gt.ElapsedSeconds("Global Binning") + 
+		      gt.ElapsedSeconds("Local Sort") + 
+		      gt.ElapsedSeconds("Sort/Copy"));
+	}
       
       int outputLocal  = tmpWriteSizes.size();
       int outputCount  = 0;
@@ -595,8 +607,8 @@ void sortio_Class::manageSortProcess()
 		  fflush(NULL);
 	      
 		  //par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[sortGroup]);
-		  par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);
-		  //par::sampleSort(binnedData, out, BIN_COMMS_[0]);
+		  //par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);  // working for SC13
+		  par::sampleSort(binnedData,BIN_COMMS_[sortGroup]);
 		  gt.EndTimer("Final Sort");
 	      
 		  if(binRanks_[sortGroup] == 0)
@@ -606,24 +618,6 @@ void sortio_Class::manageSortProcess()
 
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
-
-		  // notifiy next sort group to commence read while we do the remaining sort and write
-
-#ifdef SYNC2
-		  destRank = sortRank_ + 1;
-		  notify = 1;
-
-		  if(sortGroup == numSortGroups_ - 1)
-		    destRank = sortRank_ - (numSortGroups_ - 1);
-
-		  if(binRanks_[sortGroup] == 0)
-		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i notifying next group to begin sort...\n",
-				sortGroup);
-		  fflush(NULL);
-
-		  if(ibin < (numSortBins_-1))
-		    assert(MPI_Send(&notify,1,MPI_INT,destRank,tag+ibin+1+1000,SORT_COMM) == MPI_SUCCESS);
-#endif
 
 		  // do final write
 
