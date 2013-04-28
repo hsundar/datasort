@@ -315,7 +315,7 @@ void sortio_Class::ReadFiles()
 
   isReadFinished_ = true;
 
-  MPI_Barrier(IO_COMM);
+  //  MPI_Barrier(IO_COMM);
 
   gt.EndTimer("Raw Read");
 
