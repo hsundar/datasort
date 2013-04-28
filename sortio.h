@@ -103,6 +103,7 @@ class sortio_Class {
   bool mpi_initialized_by_sortio;        // did we have to call MPI_Init()?
 
   int  numFilesTotal_;		         // total # of input files to sort
+  int  numStorageTargets_;		 // total # of raw storage targets (Lustre OSTs)
   int  numIoHosts_;		         // total # of desired unique IO hosts
   int  numSortHosts_;			 // total # of detected sort hosts;
   int  numSortGroups_;			 // number of sort groups

@@ -103,7 +103,11 @@ void sortio_Class::ReadFiles()
     {
 
       std::ostringstream s_id;
+#ifdef ROUND_ROBIN      
       int file_suffix = iter*numIoTasks_ + ioRank_;
+#else
+      int file_suffix = (ioRank_ % numStorageTargets_) + (iter * numIoTasks_);
+#endif
 
       // Optionally randomize so we can minimize local host
       // file-caching for more legitimate reads; the idea here is to
@@ -162,11 +166,7 @@ void sortio_Class::ReadFiles()
 	} // end if(random_read_offset)
 
       if(file_suffix >= numFilesTotal_)
-	{
-	  break;
-	  //gt.EndTimer("Raw Read");
-	  //return;
-	}
+	break;
 
       s_id << file_suffix;
       std::string infile = filebase + s_id.str();

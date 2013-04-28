@@ -37,6 +37,7 @@ sortio_Class::sortio_Class()
   localSortRank_            = -1;
   localXferRank_            = -1;
   fileBaseName_             = "part";
+  numStorageTargets_        = 348;
 
   setvbuf( stdout, NULL, _IONBF, 0 );
 }
