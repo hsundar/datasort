@@ -93,11 +93,21 @@ void sortio_Class::beginRecvTransferProcess()
       if(xferRank_ == recvRank)
 	{
 
-	  // stall briefly if last data transfer to local SORT rank is
-	  // incomplete on this host
+	  // stall while we wait for last data transfer to local SORT rank to complete
 
 	  const int usleepInterval = 100;
 
+
+#if 1
+	  size_t spinCount = 0;
+
+	  while(syncFlags[0] != 0)
+	    spinCount++;
+
+	  if(xferRank_ == numIoTasks_)
+	    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] spinCount = %zi\n",spinCount);
+
+#else
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=100000000;i++)
 	      {
@@ -112,6 +122,7 @@ void sortio_Class::beginRecvTransferProcess()
 	      }
 
 	  assert(syncFlags[0] == 0);
+#endif
 
 	  MPI_Status status;
 	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",

@@ -458,6 +458,7 @@ void sortio_Class::manageSortProcess()
       if(isMasterSort_)
 	{
 	  grvy_printf(INFO,"[sortio][FINALSORT][%.4i]: Starting final sort\n",sortRank_);
+	  grvy_printf(INFO,"[sortio][SORT] Elapsed Total time = %e\n",gt.ElapsedGlobal());
 	  grvy_printf(INFO,"[sortio][SORT] Total Time for data receive process = %e\n",
 		      gt.ElapsedSeconds("Sort/Recv") + 
 		      gt.ElapsedSeconds("Bucket and Write") + 
@@ -595,8 +596,6 @@ void sortio_Class::manageSortProcess()
 
 		  fflush(NULL);
 
-		  //		  std::vector<sortRecord> out;
-	      
 		  omp_set_num_threads(numSortThreads_);
 
 		  MPI_Barrier(BIN_COMMS_[sortGroup]);
@@ -640,6 +639,9 @@ void sortio_Class::manageSortProcess()
 		  fflush(NULL);
 
 		}
+
+	      if(binRanks_[sortGroup] == 0)
+		grvy_printf(INFO,"[sortio][SORT] Elapsed total time (bin = %i) = %e\n",ibin,gt.ElapsedGlobal());
 
 	    } // end loop over numSortBins_
 

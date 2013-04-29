@@ -81,6 +81,8 @@ void sortio_Class::Summarize()
 {
 
   MPI_Barrier(GLOB_COMM);
+  if(sortMode_ > 0 && isIOTask_)
+    gt.EndTimer("Wait for Sort Completion");
   fflush(NULL);
 
   if(!isSortTask_)
@@ -358,6 +360,7 @@ void sortio_Class::SplitComm()
       return;
     }
 
+  gt.BeginTimer("SplitComm");
   char hostname[MPI_MAX_PROCESSOR_NAME];
   int len;
 
@@ -793,6 +796,8 @@ void sortio_Class::SplitComm()
 
   if(master)
     free(hostnames_ALL);  
+
+  gt.EndTimer("SplitComm");
   return;
 }
 

@@ -78,6 +78,7 @@ void sortio_Class::Init_Read()
 
   MPI_Barrier(IO_COMM);
   gt.EndTimer("Raw Read");
+  gt.BeginTimer("Wait for Sort Completion");
 
   return;
 }
@@ -326,7 +327,7 @@ void sortio_Class::ReadFiles()
 
   if(master)
     {
-      grvy_printf(INFO,"[sortio][IO/Read]: last processined done with full read\n");
+      grvy_printf(INFO,"[sortio][IO/Read]: last processor done with full read\n");
       grvy_printf(INFO,"[sortio][IO/Read]: Time for raw read  = %e\n",gt.ElapsedSeconds("Raw Read"));
     }
 
