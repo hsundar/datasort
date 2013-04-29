@@ -46,26 +46,45 @@ void sortio_Class::beginRecvTransferProcess()
 
   int *syncFlags;		// read/write notification flags
   unsigned char *buffer;	// local buffer space to receive from IO ranks
+  //shmem_xfer_sync *syncFlags2;
 
   using namespace boost::interprocess;
 
   shared_memory_object::remove("syncFlags");
   shared_memory_object::remove("rawData");
+  shared_memory_object::remove("syncFlags2");
 
-  shared_memory_object sharedMem1(create_only,"syncFlags",read_write);
-  shared_memory_object sharedMem2(create_only,"rawData",  read_write);
+  shared_memory_object sharedMem1(create_only,"syncFlags", read_write); 
+  shared_memory_object sharedMem2(create_only,"rawData",   read_write);
+  shared_memory_object sharedMem3(create_only,"syncFlags2",read_write);
 
   sharedMem1.truncate(2*sizeof(int));
   sharedMem2.truncate(MAX_FILE_SIZE_IN_MBS*1024*1024*sizeof(unsigned char));
+  sharedMem3.truncate(sizeof(shmem_xfer_sync));
 
   mapped_region region1(sharedMem1,read_write);
   mapped_region region2(sharedMem2,read_write);
+  mapped_region region3(sharedMem3,read_write);
 
   syncFlags = static_cast<int *          >(region1.get_address());
   buffer    = static_cast<unsigned char *>(region2.get_address());
+  //syncFlags2= static_cast<shmem_xfer_sync*>(region3.get_address());
+
+  void *addr = region3.get_address();
+  shmem_xfer_sync *syncFlags2 = new (addr) shmem_xfer_sync;
 
   syncFlags[0] = 0;		// master flag: 0=empty,1=full
   syncFlags[1] = messageSize;   //  extra data
+
+  syncFlags2->isReadyForNewData = true;
+
+#if 0
+  // Flag 
+  {
+    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+    syncFlags2->isReadyForNewData = true;
+  }
+#endif
 
   // initiate handshake
 
@@ -97,16 +116,32 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  const int usleepInterval = 100;
 
-
 #if 1
-	  size_t spinCount = 0;
+	  // Boost IPC sync
+	  {
+	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	    fflush(NULL);
 
-	  while(syncFlags[0] != 0)
-	    spinCount++;
-
-	  if(xferRank_ == numIoTasks_)
-	    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] spinCount = %zi\n",spinCount);
-
+	    if(!syncFlags2->isReadyForNewData)
+	      {
+		//grvy_printf(INFO,"[sync][%.4i] about to wait for condEmpty (file = %i)\n",xferRank_,ifile);
+		syncFlags2->condEmpty.wait(lock);
+		//		grvy_printf(INFO,"[sync][%.4i] just met condEmpty\n",xferRank_);
+		//syncFlags2->isReadyForNewData = false;
+	      }
+	    else
+	      grvy_printf(INFO,"[sync][%.4i] ifile = %i no sync stall necessary\n",xferRank_,ifile);
+	  
+	  }
+	      
+///	  size_t spinCount = 0;
+///
+///	  while(syncFlags[0] != 0)
+///	    spinCount++;
+///
+///	  if(xferRank_ == numIoTasks_)
+///	    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] spinCount = %zi\n",spinCount);
+///
 #else
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=100000000;i++)
@@ -148,6 +183,14 @@ void sortio_Class::beginRecvTransferProcess()
 	  // flag buffer as being eligible for transfer via IPC
 
 	  syncFlags[0] = 1;
+
+	  {
+	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	    //syncFlags2->condFull.notify_one();
+	    syncFlags2->isReadyForNewData = false;
+	    //grvy_printf(INFO,"[sync][%.4i] notifying confFull condition\n",xferRank_);
+	  }
+
 	} // end if(xferRank_ == recvRank)
 
       recvRank++;

@@ -49,17 +49,21 @@ void sortio_Class::manageSortProcess()
 
   int *syncFlags;		// read/write notification flags
   unsigned char *buffer;	// buffer space to retrieve from XFER ranks
+  shmem_xfer_sync *syncFlags2;
 
   using namespace boost::interprocess;
 
   shared_memory_object sharedMem1(open_only,"syncFlags",read_write);
   shared_memory_object sharedMem2(open_only,"rawData",  read_write);
+  shared_memory_object sharedMem3(open_only,"syncFlags2",read_write);
 
   mapped_region region1(sharedMem1,read_write);
   mapped_region region2(sharedMem2,read_write);
+  mapped_region region3(sharedMem3,read_write);
 
   syncFlags = static_cast<int *          >(region1.get_address());
   buffer    = static_cast<unsigned char *>(region2.get_address());
+  syncFlags2= static_cast<shmem_xfer_sync*>(region3.get_address());
 
 #if 0
   if(syncFlags[0] != 0)
@@ -115,7 +119,14 @@ void sortio_Class::manageSortProcess()
 	int localData  = 0;
 	int globalData = 0;
 
-	if(syncFlags[0] == 1)	// indicates data available
+	bool isNewDataAvail = false;
+	{
+	  scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	  isNewDataAvail = !syncFlags2->isReadyForNewData;
+	}
+
+	if(isNewDataAvail)	// indicates data available
+	  //	if(syncFlags[0] == 1)	// indicates data available
 	  {
 	    
 	    if(sortMode_ > 1)
@@ -131,6 +142,14 @@ void sortio_Class::manageSortProcess()
 
 	    localData    = 1;
 	    syncFlags[0] = 0;
+
+	    {
+	      scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	      //	      printf("[sync][%.4i] first attempt to get lock\n",sortRank_);
+	      //	      printf("[sync][%.4i] first sort side notifying condEmpty\n",sortRank_);
+	      syncFlags2->condEmpty.notify_all();
+	      //printf("[sync][%.4i] first just notified condEmpty\n",sortRank_);
+	    }
 
 	    assert (MPI_Allreduce(&localData,&globalData, 1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
 	
@@ -285,7 +304,15 @@ void sortio_Class::manageSortProcess()
 	  int dataLocal [2];
 	  int dataGlobal[2];
 
-	  if(syncFlags[0] == 1)
+	  bool isNewDataAvail = false;
+
+	  {
+	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	    isNewDataAvail = !syncFlags2->isReadyForNewData;
+	  }
+	    
+	     //if(syncFlags[0] == 1)
+	  if(isNewDataAvail)
 	    {
 	      if(sortMode_ > 1)
 		{
@@ -299,7 +326,24 @@ void sortio_Class::manageSortProcess()
 	      
 	      localData    = 1;
 	      localSize    = sortBuffer.size()/numRecordsPerXfer;
+
 	      syncFlags[0] = 0;
+
+	      try 
+	      {
+		scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+		//printf("[sync][%.4i] attempt to get lock\n",sortRank_);
+		syncFlags2->isReadyForNewData = true;
+
+		//printf("[sync][%.4i] sort side notifying condEmpty\n",sortRank_);
+		syncFlags2->condEmpty.notify_one();
+		//		printf("[sync][%.4i] just notified condEmpty\n",sortRank_);
+	      }
+
+	      catch(interprocess_exception &ex)
+		{
+		  std::cout << "koomie error: " << ex.what() << std::endl;
+		}
 
 	    }
 
