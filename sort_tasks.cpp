@@ -118,7 +118,7 @@ void sortio_Class::manageSortProcess()
 	if(syncFlags[0] == 1)	// indicates data available
 	  {
 	    
-	    if(sortMode_ > 0)
+	    if(sortMode_ > 1)
 	      {
 		grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] found data to copy\n",sortRank_);
 		gt.BeginTimer("Sort/Copy");
@@ -141,7 +141,7 @@ void sortio_Class::manageSortProcess()
 
 	    if( (globalData >= binningWaterMark) )
 	      {
-		if(sortMode_ > 0)
+		if(sortMode_ > 1)
 		  {
 		    if(isMasterSort_)
 		      grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
@@ -196,7 +196,7 @@ void sortio_Class::manageSortProcess()
   // BIN groups (even though BIN1 already has this data, we resend
   // using a bcast to SORT_COMM for convenience
 
-  if(sortMode_ > 0)
+  if(sortMode_ > 1)
     {
       if(!isBinTask_[0])
 	sortBins.resize(numSortBins_-1);
@@ -287,7 +287,7 @@ void sortio_Class::manageSortProcess()
 
 	  if(syncFlags[0] == 1)
 	    {
-	      if(sortMode_ > 0)
+	      if(sortMode_ > 1)
 		{
 		  gt.BeginTimer("Sort/Copy");
 		  for(int i=0;i<numRecordsPerXfer;i++)
@@ -349,7 +349,7 @@ void sortio_Class::manageSortProcess()
 	      if(numSortGroups_ > 1)
 		cycleBinGroup(numFilesReceived,binNum_);
 
-	      if(sortMode_ > 0)
+	      if(sortMode_ > 1)
 		{
 
 		  if(binRanks_[binNum_] == 0)
@@ -411,7 +411,7 @@ void sortio_Class::manageSortProcess()
 
   // Tally up all the binned records written
 
-  if(sortMode_ > 1)
+  if(sortMode_ > 2)
     {
 
       int maxDirNumLocal = outputCount;
@@ -450,7 +450,7 @@ void sortio_Class::manageSortProcess()
 
   // We are almost there: re-read binned data to complete final sort
 
-  if(sortMode_ > 1)
+  if(sortMode_ > 2)
     {
 
       MPI_Barrier(SORT_COMM);
@@ -478,6 +478,8 @@ void sortio_Class::manageSortProcess()
 	}
 
       int numRecordsReadFromTmp = 0;
+
+      numSortGroups_ = 2;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{

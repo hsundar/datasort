@@ -532,9 +532,6 @@ void sortio_Class::SplitComm()
 
     }
 
-  if(master)
-    printf("after bcast1...\n");
-
   assert( MPI_Bcast(  io_comm_ranks.data(),numIoTasks_,  MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(xfer_comm_ranks.data(),numXferTasks_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
   assert( MPI_Bcast(sort_comm_ranks.data(),numSortTasks_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
@@ -547,10 +544,6 @@ void sortio_Class::SplitComm()
 
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Bcast(binCommRanks[i].data(),numSortHosts_,MPI_INT,0,GLOB_COMM) == MPI_SUCCESS);
-
-  if(master)
-    printf("after bcast2...\n");
-  fflush(NULL);
 
   MPI_Group group_global;
   MPI_Group group_io;
@@ -569,28 +562,16 @@ void sortio_Class::SplitComm()
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Group_incl(group_global, numSortHosts_, binCommRanks[i].data(), &groups_binning[i]) == MPI_SUCCESS);
 
-  if(master)
-    printf("after group_inc2...\n");
   fflush(NULL);
-
 
   assert( MPI_Comm_create(GLOB_COMM,   group_io,   &IO_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_xfer, &XFER_COMM) == MPI_SUCCESS);
   assert( MPI_Comm_create(GLOB_COMM, group_sort, &SORT_COMM) == MPI_SUCCESS);
 
-  if(master)
-    printf("after comm_create1...\n");
-  fflush(NULL);
-
   BIN_COMMS_.reserve(numSortGroups_);
 
   for(int i=0;i<numSortGroups_;i++)
     assert( MPI_Comm_create(GLOB_COMM, groups_binning[i], &BIN_COMMS_[i]) == MPI_SUCCESS);
-
-  if(master)
-    printf("after comm create2...\n");
-
-  fflush(NULL);
 
   // is the local rank part of the new groups?
 
