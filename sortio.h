@@ -89,6 +89,7 @@ class sortio_Class {
   void checkForSendCompletion(bool waitFlag, int waterMark, int iter);
   void addBuffertoEmptyQueue (int bufNum);
   void cycleBinGroup         (int numFilesTotal,int currentGroup);
+  void doInRamSort();
   int  waitForActivation();
   int  isPowerOfTwo(unsigned int x);
 

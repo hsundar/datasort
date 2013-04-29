@@ -51,12 +51,16 @@ void sortio_Class::Init_Read()
 
   if(sortMode_ <= 0)		// no threading necessary in read-only mode
     {
-      ReadFiles();
+      //      ReadFiles();
+      doInRamSort();
       return;
     }
 
   const int num_io_threads_per_host = 2;
   omp_set_num_threads(num_io_threads_per_host);
+
+  MPI_Barrier(IO_COMM);
+  gt.BeginTimer("Raw Read");
 
 #pragma omp parallel
 #pragma omp sections
@@ -71,6 +75,9 @@ void sortio_Class::Init_Read()
       IO_Tasks_Work();
     }
   }
+
+  MPI_Barrier(IO_COMM);
+  gt.EndTimer("Raw Read");
 
   return;
 }
@@ -91,7 +98,7 @@ void sortio_Class::ReadFiles()
 
   unsigned long records_per_file;
 
-  gt.BeginTimer("Raw Read");
+  //  gt.BeginTimer("Raw Read");
   int num_iters = (numFilesTotal_+numIoTasks_-1)/numIoTasks_;
   size_t read_size;
 
@@ -315,9 +322,7 @@ void sortio_Class::ReadFiles()
 
   isReadFinished_ = true;
 
-  //  MPI_Barrier(IO_COMM);
-
-  gt.EndTimer("Raw Read");
+  //gt.EndTimer("Raw Read");
 
   if(master)
     {
@@ -325,52 +330,47 @@ void sortio_Class::ReadFiles()
       grvy_printf(INFO,"[sortio][IO/Read]: Time for raw read  = %e\n",gt.ElapsedSeconds("Raw Read"));
     }
 
-  if(sortMode_ != -1)
-    return;
+  return;
 
-  // do sort here if we are in naive mode
+}
 
-  MPI_Barrier(IO_COMM);
+// ---------------------------------------------------
+// In RAM sort for comparison purposes
+// ---------------------------------------------------
+
+void sortio_Class::doInRamSort()
+{
 
   if(master)
-    grvy_printf(INFO,"[sortio][NAIVESORT] Starting sort process....\n"); 
+    grvy_printf(INFO,"[sortio][RAMSORT] Starting read process....\n"); 
 
+  MPI_Barrier(IO_COMM);
+  gt.BeginTimer("InRAM Read");
+
+  ReadFiles();
+
+  MPI_Barrier(IO_COMM);
+  gt.EndTimer("InRAM Read");
+  gt.BeginTimer("InRam Sort");
+
+  if(master)
+    grvy_printf(INFO,"[sortio][RAMSORT] Starting sort process....\n"); 
 
   readBuf_.resize( numRecordsRead_ );
-  //  std::vector<sortRecord> out;
-
-  if(verifyMode_ > 0 )
-    {
-      if(master)
-	grvy_printf(INFO,"[sortio][NAIVESORT] - dumping input data...\n");
-
-      char filename[1024];
-      sprintf(filename,"./partfromread_%i",ioRank_);
-      FILE *fp = fopen(filename,"wb");
-      assert(fp != NULL);
-	      
-      fwrite(&readBuf_[0],sizeof(sortRecord),readBuf_.size(),fp);
-      fclose(fp);
-    }
 
   char hostname[MPI_MAX_PROCESSOR_NAME];
   int len;
   MPI_Get_processor_name(hostname, &len);
-  grvy_printf(INFO,"[sortio][NAIVESORT][%.4i] %s\n",ioRank_,hostname);
+  grvy_printf(INFO,"[sortio][RAMSORT][%.4i] %s\n",ioRank_,hostname);
 
-  //omp_par::merge_sort(&readBuf_[0],&readBuf_[readBuf_.size()]);
-
-  gt.BeginTimer("Naive - QuickSort");
-  //par::HyperQuickSort_kway(readBuf_, out, GLOB_COMM);
   par::HyperQuickSort_kway(readBuf_,GLOB_COMM);
-  gt.EndTimer("Naive - QuickSort");
+
+  MPI_Barrier(IO_COMM);
+  gt.EndTimer("InRam Sort");
+  gt.BeginTimer("Final Write");	  
 
   if(master)
-    grvy_printf(INFO,"[sortio][NAIVESORT] Finished sort\n");
-
-  //  readBuf_.clear();
-
-  gt.BeginTimer("Final Write");	  
+    grvy_printf(INFO,"[sortio][RAMSORT] Finished sort\n");
 
   char tmpFilename[1024];	     
   sprintf(tmpFilename,"%s/part_bin_p%.5i",outputDir_.c_str(),ioRank_);
@@ -381,11 +381,9 @@ void sortio_Class::ReadFiles()
 		  
   fwrite(&readBuf_[0],sizeof(sortRecord),readBuf_.size(),fp);
   fclose(fp);
+
+  MPI_Barrier(IO_COMM);
   gt.EndTimer("Final Write");	  
 
-
-
-
   return;
-
 }
