@@ -50,35 +50,8 @@ void sortio_Class::manageSortProcess()
       sortSync->activeSorts = 0;
     } 
   else
-    {
-      sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
-    }
+    sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
 
-#if 0
-  if(isLocalSortMaster_)
-    {
-      //shared_memory_object::remove("sortSync");
-      //shared_memory_object sharedMemSort1(create_only,"sortSync",read_write);
-      sharedMemSort.truncate(sizeof(shmem_finalsort_sync));
-
-#if 0
-      void *addr2 = regionSort.get_address();
-      sortSync = new (addr2) shmem_finalsort_sync;
-      sortSync->activeSorts = 0;
-#endif
-    }
-#endif
-
-  MPI_Barrier(SORT_COMM);
-
-#if 0
-  if(!isLocalSortMaster_)
-    {
-      shared_memory_object sharedMemSort(open_only,"sortSync",read_write);
-      mapped_region regionSort(sharedMemSort,read_write);
-      sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
-    }
-#endif
 
   // init shared-memory segments for transfer of data from first
   // SORT_COMM rank on this same host. Before we access, wait for a
@@ -685,11 +658,14 @@ void sortio_Class::manageSortProcess()
 		  // active (so we don't run out of memory)
 
 		  {
-		    printf("Group %i requesting lock (active = %i)\n",sortGroup,sortSync->activeSorts);
 		    scoped_lock<interprocess_mutex> lock(sortSync->mutex);
-		    printf("Lock granted num active sorts = %i (Group = %i)\n",sortSync->activeSorts,sortGroup);
-		    //if(sortSync->activeSorts > maxSortingAtOnce)
-		    //		      sortSync->condSortFinished.wait(lock);
+
+		    if(binRanks_[sortGroup] == 0)
+		      grvy_printf(INFO,"[sortio][FINALSORT] Group %i lock granted (%i active of %i max)\n",sortGroup,
+				  sortSync->activeSorts,maxSortingAtOnce);
+
+		    if(sortSync->activeSorts > maxSortingAtOnce)
+		      sortSync->condSortFinished.wait(lock);
 
 		    sortSync->activeSorts++;
 		  }
@@ -718,7 +694,7 @@ void sortio_Class::manageSortProcess()
 		  {
 		    scoped_lock<interprocess_mutex> lock(sortSync->mutex);
 		    sortSync->activeSorts--;
-		    printf("Group %i just decremented sort to %i\n",sortGroup,sortSync->activeSorts);
+		    /////printf("Group %i just decremented sort to %i\n",sortGroup,sortSync->activeSorts);
 		    sortSync->condSortFinished.notify_all();
 		  }
 	      
