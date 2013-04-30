@@ -429,7 +429,17 @@ void sortio_Class::manageSortProcess()
   if(binNum_ >= 0)
     grvy_printf(DEBUG,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
 
-  //MPI_Barrier(SORT_COMM);
+  MPI_Barrier(SORT_COMM);
+
+  // send notification to companion IPC tasks that we are all done
+
+  if(isLocalSortMaster_)
+    {
+      int handshake = 2;
+
+      MPI_Send(&handshake,1,MPI_INTEGER,localXferRank_,1,GLOB_COMM);
+      assert(handshake == 2);
+    }
 
   if(isMasterSort_)
     grvy_printf(INFO,"[sortio][SORT][%.4i]: numFilesReceived = %i\n",sortRank_,numFilesTotal_);
@@ -690,6 +700,7 @@ void sortio_Class::manageSortProcess()
 
   MPI_Barrier(SORT_COMM);
 
+#if 0
   if(isLocalSortMaster_)
     {
       int handshake = 2;
@@ -697,6 +708,7 @@ void sortio_Class::manageSortProcess()
       MPI_Send(&handshake,1,MPI_INTEGER,localXferRank_,1,GLOB_COMM);
       assert(handshake == 2);
     }
+#endif
 
   if(isMasterSort_)
     {
