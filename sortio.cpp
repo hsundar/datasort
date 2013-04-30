@@ -45,7 +45,12 @@ sortio_Class::sortio_Class()
 sortio_Class::~sortio_Class() 
 {
   if(mpi_initialized_by_sortio)
-    MPI_Finalize();
+    {
+      if(master)
+	grvy_printf(INFO,"[sortio] Exiting.....");
+
+      MPI_Finalize();
+    }
 }
 
 void sortio_Class::overrideNumFiles(int nfiles)
