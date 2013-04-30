@@ -68,7 +68,6 @@ void sortio_Class::beginRecvTransferProcess()
 
   syncFlags = static_cast<int *          >(region1.get_address());
   buffer    = static_cast<unsigned char *>(region2.get_address());
-  //syncFlags2= static_cast<shmem_xfer_sync*>(region3.get_address());
 
   void *addr = region3.get_address();
   shmem_xfer_sync *syncFlags2 = new (addr) shmem_xfer_sync;
@@ -186,9 +185,7 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  {
 	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
-	    //syncFlags2->condFull.notify_one();
 	    syncFlags2->isReadyForNewData = false;
-	    //grvy_printf(INFO,"[sync][%.4i] notifying confFull condition\n",xferRank_);
 	  }
 
 	} // end if(xferRank_ == recvRank)

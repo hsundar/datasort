@@ -9,6 +9,13 @@
 // Operates on SORT_COMM.
 // --------------------------------------------------------------------
 
+struct shmem_finalsort_sync
+{
+  boost::interprocess::interprocess_mutex     mutex;
+  boost::interprocess::interprocess_condition condSortFinished;
+  int activeSorts;
+};
+
 void sortio_Class::manageSortProcess()
 {
   assert(initialized_);
@@ -22,12 +29,61 @@ void sortio_Class::manageSortProcess()
   if(!isSortTask_)
     return;
 
+  // init shared-memory segments for sync during final sort (across BIN_COMMS_)
+
+  using namespace boost::interprocess;
+  shmem_finalsort_sync *sortSync;
+  shared_memory_object sharedMemSort(open_or_create,"sortSync",read_write);
+
+  MPI_Barrier(SORT_COMM);
+
+  if(isLocalSortMaster_)
+    sharedMemSort.truncate(sizeof(shmem_finalsort_sync));
+      
+  MPI_Barrier(SORT_COMM);
+  mapped_region regionSort(sharedMemSort,read_write);
+
+  if(isLocalSortMaster_)
+    {
+      void *addr2 = regionSort.get_address();
+      sortSync = new (addr2) shmem_finalsort_sync;
+      sortSync->activeSorts = 0;
+    } 
+  else
+    {
+      sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
+    }
+
+#if 0
+  if(isLocalSortMaster_)
+    {
+      //shared_memory_object::remove("sortSync");
+      //shared_memory_object sharedMemSort1(create_only,"sortSync",read_write);
+      sharedMemSort.truncate(sizeof(shmem_finalsort_sync));
+
+#if 0
+      void *addr2 = regionSort.get_address();
+      sortSync = new (addr2) shmem_finalsort_sync;
+      sortSync->activeSorts = 0;
+#endif
+    }
+#endif
+
+  MPI_Barrier(SORT_COMM);
+
+#if 0
+  if(!isLocalSortMaster_)
+    {
+      shared_memory_object sharedMemSort(open_only,"sortSync",read_write);
+      mapped_region regionSort(sharedMemSort,read_write);
+      sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
+    }
+#endif
+
   // init shared-memory segments for transfer of data from first
   // SORT_COMM rank on this same host. Before we access, wait for a
   // handshake from the SHM creation tasks to guarantee existence
   // prior to accessing locally.
-
-  MPI_Barrier(SORT_COMM);
 
   if(isLocalSortMaster_)
     {
@@ -51,7 +107,7 @@ void sortio_Class::manageSortProcess()
   unsigned char *buffer;	// buffer space to retrieve from XFER ranks
   shmem_xfer_sync *syncFlags2;
 
-  using namespace boost::interprocess;
+
 
   shared_memory_object sharedMem1(open_only,"syncFlags",read_write);
   shared_memory_object sharedMem2(open_only,"rawData",  read_write);
@@ -145,10 +201,7 @@ void sortio_Class::manageSortProcess()
 
 	    {
 	      scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
-	      //	      printf("[sync][%.4i] first attempt to get lock\n",sortRank_);
-	      //	      printf("[sync][%.4i] first sort side notifying condEmpty\n",sortRank_);
-	      syncFlags2->condEmpty.notify_all();
-	      //printf("[sync][%.4i] first just notified condEmpty\n",sortRank_);
+	      syncFlags2->condEmpty.notify_one();
 	    }
 
 	    assert (MPI_Allreduce(&localData,&globalData, 1,MPI_INT,MPI_SUM,BIN_COMMS_[0]) == MPI_SUCCESS);
@@ -514,8 +567,12 @@ void sortio_Class::manageSortProcess()
 	}
 
       int numRecordsReadFromTmp = 0;
+      const int maxSortingAtOnce = 4;
 
-      numSortGroups_ = 2;	// hack for testing to avoid mem overflow
+      if(isMasterSort_)
+	  sortSync->activeSorts = 0;
+
+      //numSortGroups_ = 1;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
@@ -593,7 +650,7 @@ void sortio_Class::manageSortProcess()
 			}
 		      
 		      if(!feof(fp))
-			grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Warning: missed eof for %s\n",
+			grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Warning koomie: missed eof for %s\n",
 				    binRanks_[sortGroup],tmpFilename);
 
 		      //assert(feof(fp));
@@ -624,7 +681,18 @@ void sortio_Class::manageSortProcess()
 			assert(MPI_Send(&notify,1,MPI_INT,destRank,tag1+ibin+1,SORT_COMM) == MPI_SUCCESS);
 		    }
 
-		  // do final sort
+		  // do final sort - stall if too many are currently
+		  // active (so we don't run out of memory)
+
+		  {
+		    printf("Group %i requesting lock (active = %i)\n",sortGroup,sortSync->activeSorts);
+		    scoped_lock<interprocess_mutex> lock(sortSync->mutex);
+		    printf("Lock granted num active sorts = %i (Group = %i)\n",sortSync->activeSorts,sortGroup);
+		    //if(sortSync->activeSorts > maxSortingAtOnce)
+		    //		      sortSync->condSortFinished.wait(lock);
+
+		    sortSync->activeSorts++;
+		  }
 
 		  int globalRead;
 		  binnedData.resize(startIndex);
@@ -646,11 +714,16 @@ void sortio_Class::manageSortProcess()
 		  //par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);  // working for SC13
 		  par::sampleSort(binnedData,BIN_COMMS_[sortGroup]);
 		  gt.EndTimer("Final Sort");
+
+		  {
+		    scoped_lock<interprocess_mutex> lock(sortSync->mutex);
+		    sortSync->activeSorts--;
+		    printf("Group %i just decremented sort to %i\n",sortGroup,sortSync->activeSorts);
+		    sortSync->condSortFinished.notify_all();
+		  }
 	      
 		  if(binRanks_[sortGroup] == 0)
 		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i finished sort\n",sortGroup);
-
-		  //binnedData.clear();
 
 		  if(isBinTask_[sortGroup])
 		    printResults(BIN_COMMS_[sortGroup]);
@@ -659,6 +732,8 @@ void sortio_Class::manageSortProcess()
 
 		  if(binRanks_[sortGroup] == 0)
 		    grvy_printf(INFO,"[sortio][FINALSORT] Group %i starting final write\n",sortGroup);
+
+		  fflush(NULL);
 	      
 		  gt.BeginTimer("Final Write");	  
 		  sprintf(tmpFilename,"%s/part_bin%.3i_p%.5i",outputDir_.c_str(),ibin,sortRank_);

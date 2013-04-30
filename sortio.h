@@ -105,6 +105,7 @@ class sortio_Class {
   void doInRamSort();
   int  waitForActivation();
   int  isPowerOfTwo(unsigned int x);
+  //  void setupMMAP_SortSync();
 
  private:
   bool master;			         // master MPI rank?
