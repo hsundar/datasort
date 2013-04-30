@@ -129,8 +129,8 @@ void sortio_Class::beginRecvTransferProcess()
 		//		grvy_printf(INFO,"[sync][%.4i] just met condEmpty\n",xferRank_);
 		//syncFlags2->isReadyForNewData = false;
 	      }
-	    else
-	      grvy_printf(INFO,"[sync][%.4i] ifile = %i no sync stall necessary\n",xferRank_,ifile);
+	    //else
+	    //	      grvy_printf(INFO,"[sync][%.4i] ifile = %i no sync stall necessary\n",xferRank_,ifile);
 	  
 	  }
 	      
@@ -205,6 +205,7 @@ void sortio_Class::beginRecvTransferProcess()
 
   // receive final handshake from sort task ( to guarantee SHM buffers stay in scope)
 
+  gt.BeginTimer("XFER/Wait for final sort copy");
   handshake = -1;
   MPI_Status status;
   MPI_Recv(&handshake,1,MPI_INTEGER,localSortRank_,1,GLOB_COMM,&status);
@@ -215,6 +216,8 @@ void sortio_Class::beginRecvTransferProcess()
       grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xferRank_);
       grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
     }
+
+  gt.EndTimer("XFER/Wait for final sort copy");
 
   return;
 }

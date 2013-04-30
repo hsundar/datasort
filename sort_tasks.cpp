@@ -289,6 +289,8 @@ void sortio_Class::manageSortProcess()
 
       // loop until this BIN group has sufficient data available
 
+      bool isThresholdNormalSize = true;
+
       while(true)
 	{
 	  if(isActiveMaster)
@@ -354,31 +356,46 @@ void sortio_Class::manageSortProcess()
 
 	  globalData = dataGlobal[0];
 
-	  numFilesReceived += globalData;
-	  filesOnHand      += globalData;
+	  //numFilesReceived += globalData;
+	  //	  filesOnHand      += globalData;
 
 	  // Continue with local binning and temporary file writes (1 per host)
 
-	  int threshold = 0;
+	  int threshold;
 
 	  //if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
-	  if(numFilesReceived < (numFilesTotal_ - 1*numSortHosts_) )
+	  if(numFilesReceived <= (numFilesTotal_ - 1*numSortHosts_) )
 	    {
 	      //threshold = numSortHosts_ / 10;
 	      //threshold = numSortHosts_ / 4;
 	      //threshold = numSortHosts_ / 2;
 	      //threshold = numSortHosts_ / 1.5;
-	      //threshold = numSortHosts_;
-	      threshold = numSortHosts_-1;
+	      threshold = numSortHosts_;
+	      //threshold = numSortHosts_-1;
 	      //threshold = numSortBins_;
 	      //threshold = 1.5*numSortHosts_;
+#if 0
+	      if(binRanks_[binNum_] == 0)
+		printf("host %4i is using const threshold to %i (count=%i)\n",sortRank_,threshold,iterCount);
+#endif
 	    }
-	  else 
+	  //else 
+	  else if(isThresholdNormalSize)
 	    {
-	      //threshold = numFilesTotal_ - numFilesReceived - 1;
-	      threshold = numFilesTotal_ - numFilesReceived;
+
+	      threshold = numFilesTotal_ - numFilesReceived - 1;
+
+	      //threshold = numFilesTotal_ - numFilesReceived;
+#if 1
+	      if(binRanks_[binNum_] == 0)
+		printf("host %4i is reducing threshold to %i (count=%i)\n",sortRank_,threshold,iterCount);
+#endif
 	      //threshold = 0;
+	      isThresholdNormalSize = false;
 	    }
+
+	  numFilesReceived += globalData;
+	  filesOnHand      += globalData;
 
 	  //#define OLD
 #ifdef OLD
@@ -387,6 +404,8 @@ void sortio_Class::manageSortProcess()
 	  if( filesOnHand > threshold )
 #endif
 	    {
+
+	      printf("enough data on hand, (%i > %i)\n",filesOnHand,threshold);
 
 	      // Transfer ownership to next BIN comm
 
@@ -397,8 +416,8 @@ void sortio_Class::manageSortProcess()
 		{
 
 		  if(binRanks_[binNum_] == 0)
-		    grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i files gathered, starting local binning...\n",
-				sortRank_,filesOnHand);
+		    grvy_printf(INFO,"[sortio][SORT/BIN][%.4i] %i / %i files gathered, starting local binning...\n",
+				sortRank_,filesOnHand,numFilesTotal_);
 
 		  outputCount = iterCount*numSortGroups_ + binNum_;
 		  
@@ -431,7 +450,6 @@ void sortio_Class::manageSortProcess()
 	      break;
 	    }
 #endif
-
 
 	  count++;
 	} // end while(true);
