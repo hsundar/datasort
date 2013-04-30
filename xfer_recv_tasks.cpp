@@ -123,24 +123,10 @@ void sortio_Class::beginRecvTransferProcess()
 
 	    if(!syncFlags2->isReadyForNewData)
 	      {
-		//grvy_printf(INFO,"[sync][%.4i] about to wait for condEmpty (file = %i)\n",xferRank_,ifile);
 		syncFlags2->condEmpty.wait(lock);
-		//		grvy_printf(INFO,"[sync][%.4i] just met condEmpty\n",xferRank_);
-		//syncFlags2->isReadyForNewData = false;
 	      }
-	    //else
-	    //	      grvy_printf(INFO,"[sync][%.4i] ifile = %i no sync stall necessary\n",xferRank_,ifile);
-	  
 	  }
 	      
-///	  size_t spinCount = 0;
-///
-///	  while(syncFlags[0] != 0)
-///	    spinCount++;
-///
-///	  if(xferRank_ == numIoTasks_)
-///	    grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] spinCount = %zi\n",spinCount);
-///
 #else
 	  if(syncFlags[0] != 0)
 	    for(int i=1;i<=100000000;i++)
