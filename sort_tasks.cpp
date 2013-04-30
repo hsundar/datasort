@@ -316,7 +316,8 @@ void sortio_Class::manageSortProcess()
       // set threshold to decide when we have enough data to begin local binning
 
       bool isThresholdNormalSize = true;
-      int threshold = numSortHosts_;
+      //int threshold = numSortHosts_;
+      int threshold = numSortHosts_/2;
       
       if(numFilesReceived > (numFilesTotal_ - numSortHosts_) )
 	threshold = numFilesTotal_ - numFilesReceived;
@@ -539,8 +540,8 @@ void sortio_Class::manageSortProcess()
 	  fflush(NULL);
 	}
 
-      int numRecordsReadFromTmp = 0;
-      const int maxSortingAtOnce = 4;
+      long int numRecordsReadFromTmp = 0;
+      const int maxSortingAtOnce   = 4;
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
@@ -694,7 +695,6 @@ void sortio_Class::manageSortProcess()
 		  {
 		    scoped_lock<interprocess_mutex> lock(sortSync->mutex);
 		    sortSync->activeSorts--;
-		    /////printf("Group %i just decremented sort to %i\n",sortGroup,sortSync->activeSorts);
 		    sortSync->condSortFinished.notify_all();
 		  }
 	      
@@ -727,20 +727,28 @@ void sortio_Class::manageSortProcess()
 		}
 
 	      if(binRanks_[sortGroup] == 0)
-		grvy_printf(INFO,"[sortio][SORT] Elapsed total time (bin = %i) = %e\n",ibin,gt.ElapsedGlobal());
+		grvy_printf(INFO,"[sortio][FINALSORT] Elapsed total time (bin = %i) = %e\n",ibin,gt.ElapsedGlobal());
 
 	    } // end loop over numSortBins_
 
 	  // verify we re-read in all the data
 
-	  int globalRead = 0;
+	  long int globalRead = 0;
 
 	  assert (MPI_Allreduce(&numRecordsReadFromTmp,&globalRead,1,
-				MPI_INT,MPI_SUM,SORT_COMM) == MPI_SUCCESS);
+				MPI_LONG,MPI_SUM,SORT_COMM) == MPI_SUCCESS);
 	  
 
 	  MPI_Barrier(SORT_COMM);
-	  assert(globalRead == numFilesTotal_*numRecordsPerXfer);
+	  
+	  if(globalRead != numFilesTotal_*numRecordsPerXfer)
+	    {
+	      grvy_printf(ERROR,"[sortio][FINALSORT] koomie expecting to reread %li records but found %li\n",
+			  1L*numFilesTotal_*numRecordsPerXfer,globalRead);
+		     
+	    }
+
+	  ////assert(globalRead == numFilesTotal_*numRecordsPerXfer);
 
 	} 
     } 
