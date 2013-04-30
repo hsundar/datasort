@@ -47,7 +47,11 @@ sortio_Class::~sortio_Class()
   if(mpi_initialized_by_sortio)
     {
       if(master)
-	grvy_printf(INFO,"[sortio] Exiting.....");
+	{
+	  MPI_Barrier(GLOB_COMM);
+	  grvy_printf(INFO,"\n");
+	  grvy_printf(INFO,"[sortio] All done. Terminating");
+	}
 
       MPI_Finalize();
     }

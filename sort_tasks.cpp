@@ -287,13 +287,15 @@ void sortio_Class::manageSortProcess()
       if(binRanks_[binNum_] == 0)
 	isActiveMaster = true;
 
-      // loop until this BIN group has sufficient data available
+      // set threshold to decide when we have enough data to begin local binning
 
       bool isThresholdNormalSize = true;
       int threshold = numSortHosts_;
       
       if(numFilesReceived > (numFilesTotal_ - numSortHosts_) )
 	threshold = numFilesTotal_ - numFilesReceived;
+
+      // loop until this BIN group has sufficient data available
 
       while(true)
 	{
@@ -354,42 +356,7 @@ void sortio_Class::manageSortProcess()
 
 	  assert (MPI_Allreduce(dataLocal,dataGlobal,2,MPI_INT,MPI_SUM,BIN_COMMS_[binNum_]) == MPI_SUCCESS);
 
-	  globalData = dataGlobal[0];
-
-	  //numFilesReceived += globalData;
-	  //	  filesOnHand      += globalData;
-
-	  // Continue with local binning and temporary file writes (1 per host)
-
-#if 0
-	  //if(numFilesReceived < (numFilesTotal_ - 2*numSortHosts_) )
-	  if(numFilesReceived <= (numFilesTotal_ - numSortHosts_) )
-	    {
-	      //threshold = numSortHosts_ / 10;
-	      //threshold = numSortHosts_ / 4;
-	      //threshold = numSortHosts_ / 2;
-	      //threshold = numSortHosts_ / 1.5;
-	      threshold = numSortHosts_;
-	      //threshold = numSortHosts_-1;
-	      //threshold = numSortBins_;
-	      //threshold = 1.5*numSortHosts_;
-	    }
-	  //else 
-	  else if(isThresholdNormalSize)
-	    {
-
-	      //threshold = numFilesTotal_ - numFilesReceived - 1;
-
-	      threshold = numFilesTotal_ - numFilesReceived;
-#if 1
-	      if(binRanks_[binNum_] == 0)
-		printf("host %4i is reducing threshold to %i (count=%i)\n",sortRank_,threshold,iterCount);
-#endif
-	      //threshold = 0;
-	      isThresholdNormalSize = false;
-	    }
-#endif
-
+	  globalData        = dataGlobal[0];
 	  numFilesReceived += globalData;
 	  filesOnHand      += globalData;
 
@@ -405,6 +372,8 @@ void sortio_Class::manageSortProcess()
 
 	      if(numSortGroups_ > 1)
 		cycleBinGroup(numFilesReceived,binNum_);
+
+	      // Continue with local binning and temporary file writes (1 per host)
 
 	      if(sortMode_ > 1)
 		{
