@@ -19,6 +19,7 @@ void sortio_Class::Transfer_Tasks_Work()
   int tagLocal;
   int iter; 
   int bufNum;
+  std::vector<int> buffersPacked;
   int messageSize;
   int destRank;
   int numFilesToSend;
@@ -151,12 +152,15 @@ void sortio_Class::Transfer_Tasks_Work()
 	      assert( (int)messageQueue_.size() <= MAX_MESSAGES_WATERMARK);
 	      
 	      // step 2: lock the oldest data transfer buffer on this processor
+
+	      std::vector<int> buffersPacked;
 	      
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {
 		bufNum = fullQueue_.front();
 		fullQueue_.pop_front();
 		numFilesToSend = 1;
+		buffersPacked.push_back(bufNum);
 
 		// look for possiblity of more sequential data to send...
 
@@ -171,14 +175,11 @@ void sortio_Class::Transfer_Tasks_Work()
 		      {
 			fullQueue_.pop_front();
 			numFilesToSend++;
+			buffersPacked.push_back(bufNumNext);
 			bufNumNext++;
 		      }
 		    else
-		      {
-			int foo = fullQueue_.front();
- 		        printf("no match, found %i, looking for %i\n",foo,bufNumNext);
-			break;
-		      }
+		      break;
 		  }
 
 		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buffers (%i->%i) from fullQueue\n",
@@ -201,7 +202,8 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      // queue up these messages as being in flight
 	  
-	      MsgRecord message(bufNum,requestHandle);
+	      //MsgRecord message(bufNum,requestHandle);
+	      MsgRecord message(buffersPacked,requestHandle);
 	      messageQueue_.push_back(message);
 
 	      // verifyMode = 1 -> dump data sent to compare against
@@ -277,10 +279,12 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
   while(it != messageQueue_.end() )
     {
       int messageCompleted, bufNum;
+      std::vector<int> bufNums;
       MPI_Status status;
       MPI_Request handle;
 
-      bufNum = it->getBufNum();
+      bufNums = it->getBufNums();
+      //      bufNum = it->getBufNum();
       handle = it->getHandle();
 
       // check if send has completed
@@ -289,24 +293,39 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
 
       if(messageCompleted)
 	{
-	  grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] message from buf %i complete (iter=%i)\n",ioRank_,bufNum,iter);
-	  
+#ifdef DEBUG
+	  for(int i=0;i<bufNums.size();i++)
+	    grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] message from buf %i complete (iter=%i)\n",
+			ioRank_,bufNums[i],iter);
+#endif
+
 	  it = messageQueue_.erase(it++);
 	  
 	  // re-enable this buffer for eligibility
 
-	  addBuffertoEmptyQueue(bufNum);
+	  //addBuffertoEmptyQueue(bufNum);
+
+	  for(int i=0;i<bufNums.size();i++)
+	    addBuffertoEmptyQueue(bufNums[i]);
 
 	}
       else if(waitFlag)
 	{
-	  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Stalling for previously unfinished iSend (buf=%i,iter=%i)\n",
-		      ioRank_,bufNum,iter);
+
+#ifdef DEBUG
+	  for(int i=0;i<bufNums.size();i++)
+	    grvy_printf(INFO,"[sortio][IO/XFER][%.4i] Stalling for previously unfinished iSend (buf=%i,iter=%i)\n",
+			ioRank_,bufNums[i],iter);
+#endif
+
 	  MPI_Wait(&handle,&status);
 
 	  it = messageQueue_.erase(it++);
 
-	  addBuffertoEmptyQueue(bufNum);
+	  //addBuffertoEmptyQueue(bufNum);
+
+	  for(int i=0;i<bufNums.size();i++)
+	    addBuffertoEmptyQueue(bufNums[i]);
 	}
       else
 	++it;	// <-- message still active

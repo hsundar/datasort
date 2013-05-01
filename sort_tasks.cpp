@@ -630,7 +630,7 @@ void sortio_Class::manageSortProcess()
 		  for(int iter=0;iter<=maxDirNum;iter++)
 		    {
 		      sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,binRanks_[sortGroup],ibin);
-		      
+
 		      FILE *fp = fopen(tmpFilename,"rb");
 		      if(fp == NULL)
 			grvy_printf(ERROR,"[sortio][FINALSORT][%.4i] Unable to access file %s\n",

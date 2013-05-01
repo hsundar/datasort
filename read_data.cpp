@@ -252,8 +252,8 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
 
 
-      //if(isFirstRead_)
-      if(true)
+      //if(isFirstRead_)          // <--- something funky, does not always verify
+	if(true)
 	{
 	  while(read_size == expectedSize)
 	    {
