@@ -12,7 +12,7 @@ max_file_size_in_mbs   = 100
 max_messages_watermark =  20         # max messages in flight per xfer task
 
 verify_mode            = 0
-sort_mode              = 3	# 0=no-sort, 1=intermediate-binning, 2=final-sort
+sort_mode              = 2	# 0=no-sort, 1=intermediate-binning, 2=final-sort
 num_sort_groups        = 2
 num_sort_threads       = 1
 

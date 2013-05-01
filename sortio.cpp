@@ -36,7 +36,7 @@ sortio_Class::sortio_Class()
   binNum_                   = -1;
   localSortRank_            = -1;
   localXferRank_            = -1;
-  maxMessagesToSend_        = 1;
+  maxMessagesToSend_        = 5;
   fileBaseName_             = "part";
   numStorageTargets_        = 348;
 
@@ -339,7 +339,6 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   // initialize RNG
 
   srand(numLocal_);
-
 
   MPI_Barrier(COMM);
 

@@ -53,11 +53,14 @@ void printResults(MPI_Comm comm);
 
 class MsgRecord {
   
-  int bufNum_;			// buffer num in use by message
-  MPI_Request handle_;		// MPI message request handle
+  //int bufNum_;			// buffer num in use by message
+  std::vector<int> bufNum_;	// buffer num in use by message
+  MPI_Request      handle_;	// MPI message request handle
   
 public:
-  MsgRecord() : bufNum_(0), handle_(0) { }
+  //MsgRecord() : bufNum_(0), handle_(0) { }
+  MsgRecord() : handle_(0) { }
+  //MsgRecord(const int bufNum,const int handle) {bufNum_=bufNum; handle_ = handle;}
   MsgRecord(const int bufNum,const int handle) {bufNum_=bufNum; handle_ = handle;}
 
   // we call it a match if bufNum equals
@@ -76,6 +79,8 @@ struct shmem_xfer_sync
   boost::interprocess::interprocess_condition condEmpty;
   boost::interprocess::interprocess_condition condFull;
   bool isReadyForNewData;
+  bool isAllDataTransferred;
+  size_t bufSizeAvail;
 };
 
 class sortio_Class {

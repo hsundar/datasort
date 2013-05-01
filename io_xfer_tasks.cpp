@@ -133,6 +133,8 @@ void sortio_Class::Transfer_Tasks_Work()
       // available locally; if no processors are ready yet, iterate
       // and check again
 
+      numFilesToSend = 0;
+
       if( numBuffersToTransfer > 0)
 	{
 	  if(localCount > 0) 
@@ -156,12 +158,15 @@ void sortio_Class::Transfer_Tasks_Work()
 		fullQueue_.pop_front();
 		numFilesToSend = 1;
 
-		// look for more sequential data to send...
+		// look for possiblity of more sequential data to send...
 
 		int bufNumNext = bufNum + 1;
 
 		for(int i=1;i<maxMessagesToSend_;i++)
 		  {
+		    if(fullQueue_.size() == 0)
+		      break;
+
 		    if(fullQueue_.front() == bufNumNext)
 		      {
 			fullQueue_.pop_front();
@@ -169,7 +174,11 @@ void sortio_Class::Transfer_Tasks_Work()
 			bufNumNext++;
 		      }
 		    else
-		      break;
+		      {
+			int foo = fullQueue_.front();
+ 		        printf("no match, found %i, looking for %i\n",foo,bufNumNext);
+			break;
+		      }
 		  }
 
 		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buffers (%i->%i) from fullQueue\n",
@@ -180,16 +189,15 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      // step3: send buffers to XFER ranks asynchronously
 	      
-	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
-			  ioRank_,destRank,tagLocal);
-
-
 	      //MPI_Isend(&numFilesToSend,1,MPI_INT,destRank,tagLocal,XFER_comm,&requestHandle0);
 	      int payLoadSize = numFilesToSend*messageSize;
 
 	      MPI_Bsend(&payLoadSize,1,MPI_INT,destRank,tagLocal,XFER_COMM);
 	      MPI_Isend(&buffers_[bufNum][0],payLoadSize,
 			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
+
+	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issued iSend to rank %i (tag = %i)\n",
+			  ioRank_,destRank,tagLocal);
 	      
 	      // queue up these messages as being in flight
 	  
@@ -213,18 +221,27 @@ void sortio_Class::Transfer_Tasks_Work()
       
 	} // end if (numBuffersToTransfer > 0) 
 
-      // All IO ranks keep track of total number of files transferred
-      
-      numTransferredFiles += numBuffersToTransfer;
+      // All IO ranks keep track of total number of files transferred;
+      // since we may have sent more than 1 file from a process, tally
+      // up the total sent here
+
+      int numFilesSentTotal;
+
+      assert (MPI_Allreduce(&numFilesToSend,&numFilesSentTotal,1,MPI_INTEGER,MPI_SUM,IO_COMM) == MPI_SUCCESS);      
+
+      //numTransferredFiles += numBuffersToTransfer;
+      numTransferredFiles += numFilesSentTotal;
   
       // Check for any completed messages prior to next iteration
       
       checkForSendCompletion(waitFlag=false,0,iter=count);
       
       // Sleep a bit on iterations which did not have any data to send
-      
+
+#if 0      
       if(numBuffersToTransfer == 0)
 	usleep(USLEEP_INTERVAL);
+#endif
 
       count++;
       

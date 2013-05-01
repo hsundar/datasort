@@ -186,7 +186,11 @@ void sortio_Class::ReadFiles()
       FILE *fp = fopen(infile.c_str(),"r");
       
       if(fp == NULL)
-	MPI_Abort(MPI_COMM_WORLD,42);
+	{
+	  grvy_printf(INFO,"[sortio][IO/Read][%.4i]: fatal error - cannot access input file for %s\n",
+		      ioRank_,infile.c_str());
+	  MPI_Abort(MPI_COMM_WORLD,42);
+	}
 
       // pick available buffer for data storage; buffer is a
       // convenience pointer here which is set to empty data storage

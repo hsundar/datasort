@@ -52,7 +52,6 @@ void sortio_Class::manageSortProcess()
   else
     sortSync = static_cast<shmem_finalsort_sync*>(regionSort.get_address());
 
-
   // init shared-memory segments for transfer of data from first
   // SORT_COMM rank on this same host. Before we access, wait for a
   // handshake from the SHM creation tasks to guarantee existence
@@ -79,8 +78,6 @@ void sortio_Class::manageSortProcess()
   int *syncFlags;		// read/write notification flags
   unsigned char *buffer;	// buffer space to retrieve from XFER ranks
   shmem_xfer_sync *syncFlags2;
-
-
 
   shared_memory_object sharedMem1(open_only,"syncFlags",read_write);
   shared_memory_object sharedMem2(open_only,"rawData",  read_write);
@@ -141,35 +138,46 @@ void sortio_Class::manageSortProcess()
   // once and occurs only on first BIN group)
 
   int fileOnHandFirst = 0;
+  int bufSizeAvail    = 0;
 
   if(isBinTask_[0])
     while(true)
       {
-	int localData  = 0;
-	int globalData = 0;
+	int localData    = 0;
+	int globalData   = 0;
 
 	bool isNewDataAvail = false;
 	{
 	  scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
 	  isNewDataAvail = !syncFlags2->isReadyForNewData;
+
+	  if(isNewDataAvail)
+	    {
+	      bufSizeAvail = syncFlags2->bufSizeAvail;
+	      assert( (bufSizeAvail%numRecordsPerXfer) == 0);
+	    }
 	}
 
 	if(isNewDataAvail)	// indicates data available
-	  //	if(syncFlags[0] == 1)	// indicates data available
 	  {
-	    
 	    if(sortMode_ > 1)
 	      {
 		grvy_printf(INFO,"[sortio][SORT/IPC][%.4i] found data to copy\n",sortRank_);
 		gt.BeginTimer("Sort/Copy");
+		for(int i=0;i<bufSizeAvail/sizeof(sortRecord);i++)
+		  sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+
+#if 0
 		for(int i=0;i<numRecordsPerXfer;i++)
 		  sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+#endif
 		gt.EndTimer("Sort/Copy");
 	      }
 
 	    grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] re-enabling buffer (iter =%i)\n",sortRank_,count);
 
-	    localData    = 1;
+	    localData    = bufSizeAvail / (numRecordsPerXfer*sizeof(sortRecord));	      
+	    //localData    = 1;
 	    syncFlags[0] = 0;
 
 	    {
@@ -289,7 +297,7 @@ void sortio_Class::manageSortProcess()
       // processed all files, we send a negative count here and count
       // down till the final group is terminated.
 
-      if( (numFilesReceived == numFilesTotal_) )
+      if( numFilesReceived == numFilesTotal_ )
 	{
 	  if(numSortGroups_ >= 3)
 	    {
@@ -344,22 +352,32 @@ void sortio_Class::manageSortProcess()
 	  {
 	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
 	    isNewDataAvail = !syncFlags2->isReadyForNewData;
+
+	    if(isNewDataAvail)
+	      {
+		bufSizeAvail = syncFlags2->bufSizeAvail;
+		assert( (bufSizeAvail%numRecordsPerXfer) == 0);
+	      }
 	  }
 	    
-	     //if(syncFlags[0] == 1)
 	  if(isNewDataAvail)
 	    {
 	      if(sortMode_ > 1)
 		{
 		  gt.BeginTimer("Sort/Copy");
+		  for(int i=0;i<bufSizeAvail/sizeof(sortRecord);i++)
+		    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+#if 0
 		  for(int i=0;i<numRecordsPerXfer;i++)
 		    sortBuffer.push_back(sortRecord::fromBuffer(&buffer[i*sizeof(sortRecord)]));
+#endif
 		  gt.EndTimer("Sort/Copy");
 		}
 	      
 	      grvy_printf(DEBUG,"[sortio][SORT/IPC][%.4i] re-enabling buffer (iter =%i)\n",sortRank_,count);
-	      
-	      localData    = 1;
+
+	      localData    = bufSizeAvail / (numRecordsPerXfer*sizeof(sortRecord));	      
+	      //	      localData    = 1;
 	      localSize    = sortBuffer.size()/numRecordsPerXfer;
 
 	      syncFlags[0] = 0;
@@ -457,6 +475,13 @@ void sortio_Class::manageSortProcess()
     grvy_printf(DEBUG,"[sortio][BIN][%.4i] Local binning complete\n",sortRank_);
 
   MPI_Barrier(SORT_COMM);
+
+  // let xfer receiving tasks know we have all the goods
+
+  {
+    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+    syncFlags2->isAllDataTransferred = true;
+  }
 
   // send notification to companion IPC tasks that we are all done
 
