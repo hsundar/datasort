@@ -21,6 +21,8 @@ void sortio_Class::Transfer_Tasks_Work()
   int bufNum;
   int messageSize;
   int destRank;
+  int numFilesToSend;
+  MPI_Request requestHandle0;
   MPI_Request requestHandle;
 
   std::vector<int> fullQueueCounts(numIoTasks_,0);
@@ -104,7 +106,9 @@ void sortio_Class::Transfer_Tasks_Work()
 	    if(fullQueueCounts[i] >= 1)
 	      {
 		destRanks[i]   = CycleDestRank();
-		messageTags[i] = ++tagXFER;
+		//messageTags[i] = ++tagXFER;
+		tagXFER += 2;
+		messageTags[i] = tagXFER;
 
 		numBuffersToTransfer++;
 	      }
@@ -150,7 +154,26 @@ void sortio_Class::Transfer_Tasks_Work()
 	      {
 		bufNum = fullQueue_.front();
 		fullQueue_.pop_front();
-		grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] removed buff # %i from fullQueue\n",ioRank_,bufNum);
+		numFilesToSend = 1;
+
+		// look for more sequential data to send...
+
+		int bufNumNext = bufNum + 1;
+
+		for(int i=1;i<maxMessagesToSend_;i++)
+		  {
+		    if(fullQueue_.front() == bufNumNext)
+		      {
+			fullQueue_.pop_front();
+			numFilesToSend++;
+			bufNumNext++;
+		      }
+		    else
+		      break;
+		  }
+
+		grvy_printf(INFO,"[sortio][IO/XFER][%.4i] removed %i buffers (%i->%i) from fullQueue\n",
+			    ioRank_,numFilesToSend,bufNum,bufNumNext);
 	      }
 
 	      assert(buffers_[bufNum] != NULL);
@@ -159,16 +182,22 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issuing iSend to rank %i (tag = %i)\n",
 			  ioRank_,destRank,tagLocal);
-	      
-	      MPI_Isend(&buffers_[bufNum][0],messageSize,MPI_UNSIGNED_CHAR,destRank,
-			tagLocal,XFER_COMM,&requestHandle);
+
+
+	      //MPI_Isend(&numFilesToSend,1,MPI_INT,destRank,tagLocal,XFER_comm,&requestHandle0);
+	      int payLoadSize = numFilesToSend*messageSize;
+
+	      MPI_Bsend(&payLoadSize,1,MPI_INT,destRank,tagLocal,XFER_COMM);
+	      MPI_Isend(&buffers_[bufNum][0],payLoadSize,
+			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
 	      
 	      // queue up these messages as being in flight
 	  
 	      MsgRecord message(bufNum,requestHandle);
 	      messageQueue_.push_back(message);
 
-	      // verifyMode = 1 -> dump data sent to compare against input
+	      // verifyMode = 1 -> dump data sent to compare against
+	      // input (fixme todo; likely broken with variable message size)
 
 	      if(verifyMode_ == 1)
 		{

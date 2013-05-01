@@ -29,6 +29,7 @@ void sortio_Class::beginRecvTransferProcess()
   int tagXFER  = 1000;
   unsigned long int recordsPerFile;
   int messageSize;
+  const int MAX_FILES_PER_MESSAGE = 10;
 
   // before we begin main xfer loop, we receive the # of records per
   // file which is assumed constant
@@ -46,7 +47,6 @@ void sortio_Class::beginRecvTransferProcess()
 
   int *syncFlags;		// read/write notification flags
   unsigned char *buffer;	// local buffer space to receive from IO ranks
-  //shmem_xfer_sync *syncFlags2;
 
   using namespace boost::interprocess;
 
@@ -59,7 +59,7 @@ void sortio_Class::beginRecvTransferProcess()
   shared_memory_object sharedMem3(create_only,"syncFlags2",read_write);
 
   sharedMem1.truncate(2*sizeof(int));
-  sharedMem2.truncate(MAX_FILE_SIZE_IN_MBS*1024*1024*sizeof(unsigned char));
+  sharedMem2.truncate(MAX_FILES_PER_MESSAGE*MAX_FILE_SIZE_IN_MBS*1024*1024*sizeof(unsigned char));
   sharedMem3.truncate(sizeof(shmem_xfer_sync));
 
   mapped_region region1(sharedMem1,read_write);
@@ -76,14 +76,6 @@ void sortio_Class::beginRecvTransferProcess()
   syncFlags[1] = messageSize;   //  extra data
 
   syncFlags2->isReadyForNewData = true;
-
-#if 0
-  // Flag 
-  {
-    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
-    syncFlags2->isReadyForNewData = true;
-  }
-#endif
 
   // initiate handshake
 
@@ -103,7 +95,8 @@ void sortio_Class::beginRecvTransferProcess()
 
   for(int ifile=0;ifile<numFilesTotal_;ifile++)
     {
-      tagXFER++;
+      //tagXFER++;
+      tagXFER += 2;
 
       grvy_printf(DEBUG,"[sortio][IO/Recv][%.4i] syncFlag[0] = %i, recvRank = %i (file = %i)\n",
 		  xferRank_,syncFlags[0],recvRank,ifile);
@@ -111,12 +104,9 @@ void sortio_Class::beginRecvTransferProcess()
       if(xferRank_ == recvRank)
 	{
 
-	  // stall while we wait for last data transfer to local SORT rank to complete
+	  // possibly stall while we wait for last data transfer to
+	  // local SORT rank to complete
 
-	  const int usleepInterval = 100;
-
-#if 1
-	  // Boost IPC sync
 	  {
 	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
 	    fflush(NULL);
@@ -127,30 +117,22 @@ void sortio_Class::beginRecvTransferProcess()
 	      }
 	  }
 	      
-#else
-	  if(syncFlags[0] != 0)
-	    for(int i=1;i<=100000000;i++)
-	      {
-		usleep(usleepInterval);
-		if(syncFlags[0] == 0)
-		  {
-		    if(i> 10000)
-		      grvy_printf(INFO,"[sortio][IO/Recv/IPC][%.4i] buffer xfer incomplete, stalled for"
-				  " %9.4e secs (iter=%i)\n",xferRank_,1.0e-6*i*usleepInterval,ifile);
-		    break;
-		  }
-	      }
+	  MPI_Status status1;
+	  MPI_Status status2;
 
-	  assert(syncFlags[0] == 0);
-#endif
-
-	  MPI_Status status;
 	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] initiating recv (iter=%i, tag=%i)\n",
 		      xferRank_,iter,tagXFER);
 
-	  MPI_Recv(&buffer[0],messageSize,MPI_UNSIGNED_CHAR,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status);
+	  // receive info regarding size (number) of messages, followed by raw data
+
+	  int messageSizeIncoming;
+
+	  MPI_Recv(&messageSizeIncoming,1,MPI_INT,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status1);
+	  MPI_Recv(&buffer[0],messageSizeIncoming,MPI_UNSIGNED_CHAR,status1.MPI_SOURCE,tagXFER+1,XFER_COMM,&status2);
 
 	  grvy_printf(DEBUG,"[sortio][XFER/Recv][%.4i] completed recv (iter=%i)\n",xferRank_,iter);
+
+	  assert(messageSize == messageSizeIncoming);
 
 	  // verifyMode = 2 -> dump data received in XFER_COMM to compare against input
 

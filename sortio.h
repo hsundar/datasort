@@ -140,6 +140,7 @@ class sortio_Class {
   int  numTasks_;		         // total # of MPI tasks available to the class
   int  numLocal_;		         // global MPI rank for clas GLOB_COMM
   MPI_Comm GLOB_COMM;		         // global MPI communicator provided as input to the class
+  char *bsendBuf_;			 // dedicated MPI buffer
 
   // Dedicated I/O tasks 
 
@@ -167,6 +168,7 @@ class sortio_Class {
   int      masterXFER_GlobalRank;	 // global rank of master XFER process
   int      nextDestRank_;		 // cyclic counter for next xfer rank to send data to
   int      localSortRank_;		 // MPI rank in GLOB_COMM for the first SORT task on same host
+  int      maxMessagesToSend_;           // max num of allowed messages in flight per host
   MPI_Comm XFER_COMM;		         // MPI communicator for data transfer tasks
 
   size_t   dataTransferred_;		 // amount of data transferred to receiving tasks
