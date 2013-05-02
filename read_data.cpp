@@ -247,9 +247,8 @@ void sortio_Class::ReadFiles()
       const int MAX_RETRIES = 5;
       int num_retries = 0;
 
-
       //if(isFirstRead_)
-      if(true)
+	if(true)
 	{
 	  while(read_size == expectedSize)
 	    {

@@ -541,12 +541,12 @@ void sortio_Class::manageSortProcess()
 	}
 
       long int numRecordsReadFromTmp = 0;
-      const int maxSortingAtOnce   = 4;
+      const int maxSortingAtOnce   = 2;
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      //numSortGroups_ = 1;	// hack for testing to avoid mem overflow
+      numSortGroups_ = 2;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
@@ -665,10 +665,25 @@ void sortio_Class::manageSortProcess()
 		      grvy_printf(INFO,"[sortio][FINALSORT] Group %i lock granted (%i active of %i max)\n",sortGroup,
 				  sortSync->activeSorts,maxSortingAtOnce);
 
-		    if(sortSync->activeSorts > maxSortingAtOnce)
-		      sortSync->condSortFinished.wait(lock);
+		    if( (sortSync->activeSorts +1 ) > maxSortingAtOnce)
+		      {
+			if(binRanks_[sortGroup] == 0)
+			  grvy_printf(INFO,"[sortio][FINALSORT] Group %i stalling.. (%i active of %i max)\n",sortGroup,
+				      sortSync->activeSorts,maxSortingAtOnce);
+
+			sortSync->condSortFinished.wait(lock);
+
+			if(binRanks_[sortGroup] == 0)
+			  grvy_printf(INFO,"[sortio][FINALSORT] Group %i stall complete (%i active of %i max)\n",
+				      sortGroup,sortSync->activeSorts,maxSortingAtOnce);
+				    
+		      }
 
 		    sortSync->activeSorts++;
+
+		    if(binRanks_[sortGroup] == 0)
+		      grvy_printf(INFO,"[sortio][FINALSORT] Group %i starting sort(%i active of %i max)\n",sortGroup,
+				  sortSync->activeSorts,maxSortingAtOnce);
 		  }
 
 		  int globalRead;

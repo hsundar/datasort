@@ -682,9 +682,13 @@ void sortio_Class::SplitComm()
 
   MPI_Barrier(GLOB_COMM);
 
+
+
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
 
+  //#define SHOWGROUP_COMMS
+#ifdef SHOWGROUP_COMMS
   if(master)
     {
       grvy_printf(INFO,"[sortio]\n");
@@ -795,6 +799,7 @@ void sortio_Class::SplitComm()
     }
 
   MPI_Barrier(GLOB_COMM);
+#endif
 
   // clean-up
 
