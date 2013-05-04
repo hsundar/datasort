@@ -628,7 +628,7 @@ void sortio_Class::manageSortProcess()
 
       long int numRecordsReadFromTmp = 0;
       //const int maxSortingAtOnce     = 1;   // run1/run2
-      const int maxSortingAtOnce     = 1;   // run1/run2
+      const int maxSortingAtOnce     = 2;   // run1/run2
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;

@@ -693,7 +693,7 @@ void sortio_Class::SplitComm()
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
 
-#define SHOWGROUP_COMMS
+  //#define SHOWGROUP_COMMS
 #ifdef SHOWGROUP_COMMS
   if(master)
     {
