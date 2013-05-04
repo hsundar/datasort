@@ -2484,7 +2484,7 @@ namespace par {
 
 
   template<typename T>
-    int HyperQuickSort_kway_memhog(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm_) {
+    int HyperQuickSort_kway(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm_) {
       total_sort.clear();
       seq_sort.clear();
       hyper_compute_splitters.clear();
@@ -4606,6 +4606,7 @@ namespace par {
           //sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
           sprintf(fname, "%s_%03d.dat", filename, i);
 #ifdef USE_FWRITE          
+	  unlink(fname);
           fp = fopen(fname, "wb");
           fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
           fclose(fp);

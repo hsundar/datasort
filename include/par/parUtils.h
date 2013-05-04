@@ -448,11 +448,14 @@ namespace par {
     @param out the output vector
     @param comm the communicator
     */
+
   template<typename T>
     int HyperQuickSort(std::vector<T>& in, std::vector<T> & out, MPI_Comm comm); 
 
+#if 1
   template<typename T>
     int HyperQuickSort_kway(std::vector<T>& in, std::vector<T> & out, MPI_Comm comm); 
+#endif
 		
   /* mem-efficient version */
   template<typename T>
