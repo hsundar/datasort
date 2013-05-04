@@ -109,7 +109,9 @@ void sortio_Class::manageSortProcess()
   //  const size_t binningWaterMark = numSortHosts_/10;
 
   char tmpFilename[1024];	     // location for tmp file
+  std::vector<std::pair <sortRecord,DendroIntL> >  sortBinsSkewed;
   std::vector<sortRecord> sortBins;  // binning buckets
+
   std::vector< std::vector<int> > tmpWriteSizes;
   
   if(isMasterSort_)
@@ -200,11 +202,19 @@ void sortio_Class::manageSortProcess()
 		    gt.EndTimer("Local Sort");
 
 		    gt.BeginTimer("Global Binning");
-		    sortBins = par::Sorted_approx_Select(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+
+		    if(useSkewSort)
+		      sortBinsSkewed = par::Sorted_approx_Select_skewed(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+		    else
+		      sortBins = par::Sorted_approx_Select(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+
 		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
 		    gt.EndTimer("Global Binning");
-		    
-		    assert(sortBins.size() == numSortBins_ - 1 );
+
+		    if(useSkewSort)
+		      assert(sortBinsSkewed.size() == numSortBins_ - 1 );
+		    else
+		      assert(sortBins.size() == numSortBins_ - 1 );
 		    
 		    outputCount = 0; // first write
 		    
@@ -214,10 +224,17 @@ void sortio_Class::manageSortProcess()
 		    grvy_check_file_path(tmpFilename);
 		    grvy_printf(DEBUG,"[sortio][SORT][%.4i]: Size of sortBuffer for bucket = %zi\n",sortRank_,
 				sortBuffer.size());
-		    
+
+		    std::vector<int> writeCounts;		    
 		    gt.BeginTimer("Bucket and Write");
-		    std::vector<int> writeCounts = par::bucketDataAndWrite(sortBuffer,sortBins,
-									   tmpFilename,BIN_COMMS_[0]);
+
+		    if(useSkewSort)
+		      writeCounts = par::bucketDataAndWriteSkewed(sortBuffer,sortBinsSkewed,
+								  tmpFilename,BIN_COMMS_[0]);
+		    else
+		      writeCounts = par::bucketDataAndWrite(sortBuffer,sortBins,
+							    tmpFilename,BIN_COMMS_[0]);
+
 		    gt.EndTimer("Bucket and Write");	    
 		    
 		    assert(writeCounts.size() == numSortBins_ );
@@ -244,21 +261,62 @@ void sortio_Class::manageSortProcess()
   if(sortMode_ > 1)
     {
       if(!isBinTask_[0])
-	sortBins.resize(numSortBins_-1);
+	{
+	  if(useSkewSort)
+	    sortBinsSkewed.resize(numSortBins_-1);
+	  else
+	    sortBins.resize(numSortBins_-1);
+	}
+
 
       std::vector<sortRecord> binOrig;
+      std::vector<std::pair <sortRecord,DendroIntL> > binOrigSkew;
+
       if(binNum_ == 0 && binRanks_[0] == 1)
-	binOrig = sortBins;
+	{
+	  if(useSkewSort)
+	    binOrigSkew = sortBinsSkewed;
+	  else
+	    binOrig = sortBins;
+	}
       
       MPI_Datatype MPISORT_TYPE = par::Mpi_datatype<sortRecord>::value();
+      MPI_Datatype MPIINTL_TYPE = par::Mpi_datatype<DendroIntL>::value();
 
-      assert( MPI_Bcast( sortBins.data(),sortBins.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
+      if(useSkewSort)
+	{
+	  // doing something quick and dirty to send an vector<pair>; do it individually
+	  std::vector<sortRecord> binTmp(sortBinsSkewed.size());
+	  std::vector<DendroIntL> intlTmp(sortBinsSkewed.size());
+
+	  if(binNum_ == 0 && binRanks_[0] == 1)
+	    for(size_t i=0;i<sortBinsSkewed.size();i++)
+	      {
+		binTmp[i]  = (sortBinsSkewed[i]).first;
+		intlTmp[i] = (sortBinsSkewed[i]).second;
+	      }
+	  
+	  assert( MPI_Bcast(  binTmp.data(), binTmp.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
+	  assert( MPI_Bcast( intlTmp.data(),intlTmp.size(), MPIINTL_TYPE,0,SORT_COMM) == MPI_SUCCESS);
+
+	  for(size_t i=0;i<sortBinsSkewed.size();i++)
+	    {
+	      (sortBinsSkewed[i]).first  =  binTmp[i];
+	      (sortBinsSkewed[i]).second = intlTmp[i];
+	    }
+	}
+      else
+	assert( MPI_Bcast( sortBins.data(),sortBins.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
 
       // double check 
 
       if(binNum_ == 0 && binRanks_[0] == 1)
-	for(size_t i=0;i<binOrig.size();i++)
-	  assert(binOrig[i] == sortBins[i]);
+	if(useSkewSort)
+	  for(size_t i=0;i<binOrigSkew.size();i++)
+	    assert(binOrigSkew[i] == sortBinsSkewed[i]);
+	else
+	  for(size_t i=0;i<binOrig.size();i++)
+	    assert(binOrig[i] == sortBins[i]);
     }
 
   // Transfer ownership to next BIN group
@@ -541,12 +599,12 @@ void sortio_Class::manageSortProcess()
 	}
 
       long int numRecordsReadFromTmp = 0;
-      const int maxSortingAtOnce   = 2;
+      const int maxSortingAtOnce   = 3;
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      numSortGroups_ = 2;	// hack for testing to avoid mem overflow
+      numSortGroups_ = 4;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
