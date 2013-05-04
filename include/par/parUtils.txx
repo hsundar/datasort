@@ -18,6 +18,7 @@
 #include <cstring>
 #include "dendro.h"
 #include <fcntl.h>
+#include "indexHolder.h"
 
 #ifdef _PROFILE_SORT
   #include "sort_profiler.h"
