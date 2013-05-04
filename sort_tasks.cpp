@@ -541,12 +541,13 @@ void sortio_Class::manageSortProcess()
 	}
 
       long int numRecordsReadFromTmp = 0;
-      const int maxSortingAtOnce   = 2;
+      //const int maxSortingAtOnce     = 1;   // run1/run2
+      const int maxSortingAtOnce     = 1;   // run1/run2
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      numSortGroups_ = 2;	// hack for testing to avoid mem overflow
+      numSortGroups_ = 3;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
@@ -703,8 +704,8 @@ void sortio_Class::manageSortProcess()
 		  fflush(NULL);
 	      
 		  //par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[sortGroup]);
-		  //par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);  // working for SC13
-		  par::sampleSort(binnedData,BIN_COMMS_[sortGroup]);
+		  par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);  // working for SC13
+		  //par::sampleSort(binnedData,BIN_COMMS_[sortGroup]);
 		  gt.EndTimer("Final Sort");
 
 		  {
