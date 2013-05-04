@@ -260,6 +260,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/output_dir",            &outputDir_)             != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
+      assert( iparse.Read_Var("sortio/enable_skew_kernel",    &useSkewSort,false)      != 0 );
 
       if(!overrideNumSortGroups_)
 	assert( iparse.Read_Var("sortio/num_sort_groups",     &numSortGroups_        ) != 0 );
@@ -289,6 +290,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] --> Output directory              = %s\n",outputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
+      grvy_printf(INFO,"[sortio] --> Enable skewed sort kernel?    = %i\n",useSkewSort);
       grvy_printf(INFO,"[sortio] --> Number of sort bins           = %i\n",numSortBins_);
       grvy_printf(INFO,"[sortio] --> Number of sort groups         = %i\n",numSortGroups_);
       grvy_printf(INFO,"[sortio] --> Number of sort threads        = %i\n",numSortThreads_);
