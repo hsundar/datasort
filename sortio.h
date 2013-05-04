@@ -30,6 +30,7 @@
 #include "par/sort_profiler.h"
 #include "par/parUtils.h"
 #include "gensort/sortRecord.h"
+//#include "dendro.h"
 
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
@@ -124,6 +125,7 @@ class sortio_Class {
   int  numSortGroups_;			 // number of sort groups
   int  verifyMode_;			 // verification mode (1=input data)
   int  sortMode_;                        // sort mode (0=disable)
+  int  useSkewSort_;			 // flag to enable skewed data sort mode
   int  numSortBins_;			 // total # of sort bins
 
   unsigned long numRecordsRead_;         // total # of records read locally

@@ -33,6 +33,7 @@ sortio_Class::sortio_Class()
   verifyMode_               = 0;
   sortMode_                 = 0;
   activeBin_                = 0;
+  useSkewSort_              = 0;
   binNum_                   = -1;
   localSortRank_            = -1;
   localXferRank_            = -1;
@@ -248,6 +249,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/verify_mode",             0);
       iparse.Register_Var("sortio/sort_mode",               1);
       iparse.Register_Var("sortio/num_sort_bins",          10);
+      iparse.Register_Var("sortio/enable_skew_kernel",      0);
+
       if(!overrideNumSortGroups_)
 	iparse.Register_Var("sortio/num_sort_groups",       1);
       if(!overrideNumSortThreads_)
@@ -260,6 +263,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/output_dir",            &outputDir_)             != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
+      assert( iparse.Read_Var("sortio/enable_skew_kernel",    &useSkewSort_)           != 0 );
 
       if(!overrideNumSortGroups_)
 	assert( iparse.Read_Var("sortio/num_sort_groups",     &numSortGroups_        ) != 0 );
@@ -289,6 +293,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] --> Output directory              = %s\n",outputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
+      grvy_printf(INFO,"[sortio] --> Enable skewed sort kernel?    = %i\n",useSkewSort_);
       grvy_printf(INFO,"[sortio] --> Number of sort bins           = %i\n",numSortBins_);
       grvy_printf(INFO,"[sortio] --> Number of sort groups         = %i\n",numSortGroups_);
       grvy_printf(INFO,"[sortio] --> Number of sort threads        = %i\n",numSortThreads_);
@@ -311,6 +316,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   assert( MPI_Bcast(&numSortBins_,          1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&verifyMode_,           1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&sortMode_,             1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&useSkewSort_,          1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_READ_BUFFERS,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_FILE_SIZE_IN_MBS,  1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INT,0,COMM) == MPI_SUCCESS );
@@ -687,7 +693,7 @@ void sortio_Class::SplitComm()
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
 
-  //#define SHOWGROUP_COMMS
+#define SHOWGROUP_COMMS
 #ifdef SHOWGROUP_COMMS
   if(master)
     {
