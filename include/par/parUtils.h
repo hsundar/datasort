@@ -405,6 +405,8 @@ namespace par {
 	template<typename T>
 		std::vector<T> Sorted_approx_Select(std::vector<T>& arr, unsigned int k, MPI_Comm comm);
 	template<typename T>
+	  std::vector<std::pair<T, DendroIntL> > Sorted_approx_Select_skewed (std::vector<T>& arr, unsigned int kway, MPI_Comm comm); 
+	template<typename T>
 		std::vector<T> GetRangeMean(std::vector<T>& arr, std::vector<unsigned int> range_min, std::vector<unsigned int> range_max, MPI_Comm comm);
 	template<typename T>
 		std::vector<T> GuessRangeMedian(std::vector<T>& arr, std::vector<unsigned int> range_min, std::vector<unsigned int> range_max, MPI_Comm comm);
@@ -440,6 +442,9 @@ namespace par {
 	 template <typename T>
 	   std::vector<int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
 					       const char* filename, MPI_Comm comm);
+	 template <typename T>
+	   int bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters,
+					 char* filename, MPI_Comm comm); 
 
   /**
     @brief A parallel hyper quick sort implementation.
@@ -479,6 +484,8 @@ namespace par {
     int sampleSort_largemem(std::vector<T>& in, std::vector<T> & out, MPI_Comm comm); 
   template<typename T>
     int sampleSort(std::vector<T>& arr, MPI_Comm comm); 
+  template<typename T>
+    int sampleSortSkewed(std::vector<T>& arr, MPI_Comm comm);
 
   /**
     @brief Removes duplicates in parallel. If the input is not sorted, sample sort will be called 

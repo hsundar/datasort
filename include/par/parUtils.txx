@@ -4631,6 +4631,482 @@ namespace par {
 
 #endif
 
+  // new skewed-data support from Hari - 5/3/2013
+
+	template<typename T>
+		std::vector<std::pair<T, DendroIntL> > Sorted_approx_Select_skewed (std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+			int rank, npes;
+      MPI_Comm_size(comm, &npes);
+			MPI_Comm_rank(comm, &rank);
+			
+			//-------------------------------------------
+      DendroIntL totSize, nelem = arr.size(); 
+      par::Mpi_Allreduce<DendroIntL>(&nelem, &totSize, 1, MPI_SUM, comm);
+			
+			//Determine splitters. O( log(N/p) + log(p) )        
+      int splt_count = (1000*kway*nelem)/totSize; 
+      if (npes>1000*kway) splt_count = (((float)rand()/(float)RAND_MAX)*totSize<(1000*kway*nelem)?1:0);
+      if (splt_count>nelem) splt_count=nelem;
+     
+      // long should be sufficient for some time at least 
+      // 1<<63 <- 9,223,372,036,854,775,808 (9 Quintillion )  
+      std::vector<T>          splitters(splt_count); 
+      std::vector<DendroIntL> dup_ranks(splt_count); 
+      for(size_t i=0;i<splt_count;i++) {
+        dup_ranks[i] = (2*i*totSize/npes) + rand()%nelem;
+        splitters[i] =  arr[rand()%nelem];
+      }
+
+      // std::cout << rank << ": got splitters and indices " << std::endl;
+      // Gather all splitters. O( log(p) )
+      int glb_splt_count;
+      std::vector<int> glb_splt_cnts(npes);
+      std::vector<int> glb_splt_disp(npes,0);
+      
+      par::Mpi_Allgather<int>(&splt_count, &glb_splt_cnts[0], 1, comm);
+      omp_par::scan(&glb_splt_cnts[0],&glb_splt_disp[0],npes);
+      glb_splt_count = glb_splt_cnts[npes-1] + glb_splt_disp[npes-1];
+      
+      std::vector<T>          glb_splitters (glb_splt_count);
+      std::vector<DendroIntL> glb_dup_ranks (glb_splt_count);
+      MPI_Allgatherv(&    dup_ranks[0], splt_count, par::Mpi_datatype<DendroIntL>::value(), 
+                     &glb_dup_ranks[0], &glb_splt_cnts[0], &glb_splt_disp[0], 
+                     par::Mpi_datatype<DendroIntL>::value(), comm);
+      MPI_Allgatherv(&    splitters[0], splt_count, par::Mpi_datatype<T>::value(), 
+                     &glb_splitters[0], &glb_splt_cnts[0], &glb_splt_disp[0], 
+                     par::Mpi_datatype<T>::value(), comm);
+
+
+      // std::cout << rank << ": ranking splitters " << std::endl;
+      // rank splitters. O( log(N/p) + log(p) )
+      std::vector<DendroIntL> disp(glb_splt_count, 0);
+      DendroIntL dLow, dHigh;
+      if(nelem>0){
+        #pragma omp parallel for
+        for(size_t i=0; i<glb_splt_count; i++){
+          // disp[i] = std::lower_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          dLow = std::lower_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          dHigh = std::upper_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          if ( (dHigh-dLow) > 1 ) {
+            DendroIntL sRank = glb_dup_ranks[i]*npes/2/totSize;
+            if (sRank < rank ) {
+              disp[i] = dLow;
+            } else if (sRank > rank) {
+              disp[i] = dHigh;
+            } else {
+              disp[i] = glb_dup_ranks[i] - (2*rank*totSize/npes);
+            }
+          } else {
+            disp[i] = dLow;
+          }
+        }
+      }
+      std::vector<DendroIntL> glb_disp(glb_splt_count, 0);
+     
+      // std::cout << rank << ": all reduce " << std::endl;
+      MPI_Allreduce(&disp[0], &glb_disp[0], glb_splt_count, par::Mpi_datatype<DendroIntL>::value(), MPI_SUM, comm);
+        
+	    std::vector< std::pair<T, DendroIntL> > split_keys(kway);
+      std::pair<T, DendroIntL> key_pair;
+      #pragma omp parallel for
+      for (unsigned int qq=0; qq<kway; qq++) {
+				DendroIntL* _disp = &glb_disp[0];
+				DendroIntL optSplitter = ((qq+1)*totSize)/(kway+1);
+        // if (!rank) std::cout << "opt " << qq << " - " << optSplitter << std::endl;
+        for(size_t i=0; i<glb_splt_count; i++) {
+        	if(labs(glb_disp[i] - optSplitter) < labs(*_disp - optSplitter)) {
+						_disp = &glb_disp[i];
+					}
+				}
+        
+        key_pair.first  = glb_splitters[_disp - &glb_disp[0]];
+        key_pair.second = glb_dup_ranks[_disp - &glb_disp[0]];
+        split_keys[qq]  = key_pair; // 
+			}
+			
+      // std::cout << rank << ": all done" << std::endl;
+			return split_keys;
+		}	
+
+//===============================================================================================================================================
+
+	 template <typename T>
+     int bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters, char* filename, MPI_Comm comm) {
+        int npes, myrank;
+        MPI_Comm_size(comm, &npes);
+        MPI_Comm_rank(comm, &myrank);
+      
+        DendroIntL totSize, nelem = in.size(); 
+        par::Mpi_Allreduce<DendroIntL>(&nelem, &totSize, 1, MPI_SUM, comm);
+        
+        // easier if data is locally sorted ...
+        omp_par::merge_sort(&in[0], &in[in.size()]);
+
+        unsigned int k = splitters.size();
+       
+        // locally bin the data.
+        std::vector<int> bucket_size(k+1), bucket_disp(k+2); 
+        bucket_disp[0]=0; bucket_disp[k+1] = in.size();
+
+        // std::cout << myrank << ": starting local binning" << std::endl;
+
+        DendroIntL dLow, dHigh, dMid;
+        for(size_t i=0; i<k; i++){
+          // disp[i] = std::lower_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          // bucket_disp[i+1] = std::lower_bound(&in[0], &in[in.size()], splitters[i]) - &in[0];
+          dLow = std::lower_bound(&in[0], &in[in.size()], splitters[i].first ) - &in[0];
+          dHigh = std::upper_bound(&in[0], &in[in.size()], splitters[i].first ) - &in[0];
+          if ( (dHigh-dLow) > 1 ) {
+            DendroIntL sRank = splitters[i].second * npes/2/totSize;
+            
+            if (sRank < myrank ) {
+              bucket_disp[i+1] = dLow;
+            } else if (sRank > myrank) {
+              bucket_disp[i+1] = dHigh;
+            } else {
+              dMid = splitters[i].second - (2*myrank*totSize/npes);
+              if ( (dMid >= dLow) && (dMid <= dHigh) )
+                bucket_disp[i+1] = dMid;
+              else
+                bucket_disp[i+1] = (dLow + dHigh)/2;
+            }
+          } else {
+            bucket_disp[i+1] = dLow;
+          }
+        }
+
+        for(int i=0; i<k+1; i++) bucket_size[i] = bucket_disp[i+1] - bucket_disp[i]; 
+
+#if 0
+        FILE* fp;
+#else
+        int fd;
+
+#endif
+        char fname[1024];
+        for (int i=0; i<k+1; i++) {
+          // load balance bucket i
+          std::vector<T> bucket(bucket_size[i]);
+          std::copy(&in[bucket_disp[i]], &in[bucket_disp[i+1]], bucket.begin() );
+          par::partitionW<T>(bucket, NULL, comm);
+
+          // write out ?
+          sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
+#if 0          
+          fp = fopen(fname, "wb");
+          fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
+          fclose(fp);
+#else
+          fd = open(fname, O_WRONLY | O_CREAT, S_IWUSR);
+          if (fd == -1) {
+            perror("File cannot be opened");
+            return EXIT_FAILURE;
+          }
+          
+          write(fd, &bucket[0], sizeof(T)*bucket.size() );
+          close (fd);
+#endif
+          // update
+          bucket.clear();
+        }
+
+        return 0;
+
+     }
+
+//===============================================================================================================================================
+
+
+
+  template<typename T>
+    int sampleSortSkewed(std::vector<T>& arr, MPI_Comm comm){ 
+#ifdef __PROFILE_WITH_BARRIER__
+      MPI_Barrier(comm);
+#endif
+      PROF_SORT_BEGIN
+
+#ifdef _PROFILE_SORT
+	 		total_sort.start();
+#endif
+
+     int npes;
+
+      MPI_Comm_size(comm, &npes);
+
+      assert(arr.size());
+
+      if (npes == 1) {
+#ifdef _PROFILE_SORT
+				seq_sort.start();
+#endif
+        omp_par::merge_sort(&arr[0],&arr[arr.size()]);
+#ifdef _PROFILE_SORT
+  			seq_sort.stop();
+		 		total_sort.stop();
+#endif      
+			  PROF_SORT_END
+      } 
+
+      // std::vector<T>  splitters;
+      // std::vector<T>  allsplitters;
+
+      int myrank;
+      MPI_Comm_rank(comm, &myrank);
+
+      DendroIntL nelem = arr.size();
+      DendroIntL nelemCopy = nelem;
+      DendroIntL totSize;
+      par::Mpi_Allreduce<DendroIntL>(&nelemCopy, &totSize, 1, MPI_SUM, comm);
+
+      DendroIntL npesLong = npes;
+      const DendroIntL FIVE = 5;
+
+      if(totSize < (FIVE*npesLong*npesLong)) {
+        if(!myrank) {
+          std::cout <<" Using bitonic sort since totSize < (5*(npes^2)). totSize: "
+            <<totSize<<" npes: "<<npes <<std::endl;
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-1 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        MPI_Comm new_comm;
+        if(totSize < npesLong) {
+          if(!myrank) {
+            std::cout<<" Input to sort is small. splittingComm: "
+              <<npes<<" -> "<< totSize<<std::endl;
+          }
+          par::splitCommUsingSplittingRank(static_cast<int>(totSize), &new_comm, comm);
+        } else {
+          new_comm = comm;
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-2 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        if(!arr.empty()) {
+          par::bitonicSort<T>(arr, new_comm);
+        }
+
+#ifdef __DEBUG_PAR__
+        MPI_Barrier(comm);
+        if(!myrank) {
+          std::cout<<"SampleSort (small n): Stage-3 passed."<<std::endl;
+        }
+        MPI_Barrier(comm);
+#endif
+
+        PROF_SORT_END
+      }// end if
+
+#ifdef __DEBUG_PAR__
+      if(!myrank) {
+        std::cout<<"Using sample sort to sort nodes. n/p^2 is fine."<<std::endl;
+      }
+#endif
+
+      //Re-part arr so that each proc. has atleast p elements.
+#ifdef _PROFILE_SORT
+  		sort_partitionw.start();
+#endif
+			par::partitionW<T>(arr, NULL, comm);
+#ifdef _PROFILE_SORT
+  		sort_partitionw.stop();
+#endif
+      nelem = arr.size();
+
+#ifdef _PROFILE_SORT
+			seq_sort.start();
+#endif
+      omp_par::merge_sort(&arr[0],&arr[arr.size()]);
+#ifdef _PROFILE_SORT
+			seq_sort.stop();
+#endif
+      unsigned long idx; 
+      std::vector<IndexHolder<T> > sendSplits(npes-1);
+      std::vector< IndexHolder<T> >  splitters (npes);
+      // splitters.resize(npes);
+
+      #pragma omp parallel for
+      for(int i = 1; i < npes; i++) {
+        idx = 2*myrank*nelem/npes + i*nelem/npes;
+        sendSplits[i-1] = IndexHolder<T> (arr[i*nelem/npes], idx);        
+      }//end for i
+
+#ifdef _PROFILE_SORT
+ 		  sample_sort_splitters.start();
+#endif
+      //! sort sendSplits using bitonic ...
+      // std::cout << myrank << ": calling bitonic -- " << sendSplits.size() <<  std::endl;
+      par::bitonicSort< IndexHolder<T> >(sendSplits, comm);
+     
+      // if (!myrank)
+      // std::cout << myrank << ": finished bitonic" << std::endl;
+
+#ifdef _PROFILE_SORT
+ 		  sample_sort_splitters.stop();
+#endif
+				
+				
+#ifdef _PROFILE_SORT
+	 		sample_prepare_scatter.start();
+#endif				
+      // All gather with last element of splitters.
+      IndexHolder<T> *sendSplitsPtr = NULL;
+      IndexHolder<T> *splittersPtr = NULL;
+      if(sendSplits.size() > static_cast<unsigned int>(npes-2)) {
+        sendSplitsPtr = &(*(sendSplits.begin() + (npes -2)));
+      }
+      if(!splitters.empty()) {
+        splittersPtr = &(*(splitters.begin()));
+      }
+      par::Mpi_Allgather<IndexHolder<T> >(sendSplitsPtr, splittersPtr, 1, comm);
+
+      sendSplits.clear();
+
+      int *sendcnts = new int[npes];
+      assert(sendcnts);
+
+      int * recvcnts = new int[npes];
+      assert(recvcnts);
+
+      int * sdispls = new int[npes];
+      assert(sdispls);
+
+      int * rdispls = new int[npes];
+      assert(rdispls);
+
+      #pragma omp parallel for
+      for(int k = 0; k < npes; k++){
+        sendcnts[k] = 0;
+      }
+
+      {
+        int omp_p=omp_get_max_threads();
+        int* proc_split = new int[omp_p+1];
+        DendroIntL* lst_split_indx = new DendroIntL[omp_p+1];
+        proc_split[0]=0;
+        lst_split_indx[0]=0;
+        lst_split_indx[omp_p]=nelem;
+        #pragma omp parallel for
+        for(int i=1;i<omp_p;i++){
+          //proc_split[i] = seq::BinSearch(&splittersPtr[0],&splittersPtr[npes-1],arr[i*nelem/omp_p],std::less<T>());
+          idx = 2*myrank*nelem/npes + i*(size_t)nelem/omp_p;
+          IndexHolder<T> key( arr[i*(size_t)nelem/omp_p], idx);
+          proc_split[i] = std::upper_bound( &splittersPtr[0], &splittersPtr[npes-1], key, std::less<IndexHolder<T> >())  - &splittersPtr[0];
+          if(proc_split[i]<npes-1){
+            //lst_split_indx[i]=seq::BinSearch(&arr[0],&arr[nelem],splittersPtr[proc_split[i]],std::less<T>());
+            lst_split_indx[i] = std::upper_bound(&arr[0], &arr[nelem], splittersPtr[proc_split[i]].value , std::less<T>()) - &arr[0];
+          }else{
+            proc_split[i]     = npes-1;
+            lst_split_indx[i] = nelem;
+          }
+        }
+        idx = 2*myrank*nelem/npes;
+        #pragma omp parallel for
+        for (int i=0;i<omp_p;i++){
+          int sendcnts_=0;
+          int k=proc_split[i];
+          for (DendroIntL j = lst_split_indx[i]; j < lst_split_indx[i+1]; j++) {
+            if ( IndexHolder<T>(arr[j],idx+j) <= splitters[k]) {
+              sendcnts_++;
+            } else{
+              if(sendcnts_>0)
+                sendcnts[k]=sendcnts_;
+              sendcnts_=0;
+              k = seq::UpperBound< IndexHolder<T> >(npes-1, splittersPtr, k+1, IndexHolder<T>(arr[j],idx+j) );
+              if (k == (npes-1) ){
+                //could not find any splitter >= arr[j]
+                sendcnts_ = (nelem - j);
+                break;
+              } else {
+                assert(k < (npes-1));
+                assert(splitters[k].value >= arr[j]);
+                sendcnts_++;
+              }
+            }//end if-else
+          }//end for j
+          if(sendcnts_>0)
+            sendcnts[k]=sendcnts_;
+        }
+        delete [] lst_split_indx;
+        delete [] proc_split;
+      }
+
+      par::Mpi_Alltoall<int>(sendcnts, recvcnts, 1, comm);
+
+      sdispls[0] = 0; rdispls[0] = 0;
+//      for (int j = 1; j < npes; j++){
+//        sdispls[j] = sdispls[j-1] + sendcnts[j-1];
+//        rdispls[j] = rdispls[j-1] + recvcnts[j-1];
+//      }
+      omp_par::scan(sendcnts,sdispls,npes);
+      omp_par::scan(recvcnts,rdispls,npes);
+
+      DendroIntL nsorted = rdispls[npes-1] + recvcnts[npes-1];
+      std::vector<T> SortedElem(nsorted);
+
+      T* arrPtr = NULL;
+      T* SortedElemPtr = NULL;
+      if(!arr.empty()) {
+        arrPtr = &(*(arr.begin()));
+      }
+      if(!SortedElem.empty()) {
+        SortedElemPtr = &(*(SortedElem.begin()));
+      }
+#ifdef _PROFILE_SORT
+	 		sample_prepare_scatter.stop();
+#endif
+				
+#ifdef _PROFILE_SORT
+	 		sample_do_all2all.start();
+#endif							
+      // par::Mpi_Alltoallv_dense<T>(arrPtr, sendcnts, sdispls, SortedElemPtr, recvcnts, rdispls, comm);
+      Mpi_Alltoallv(arrPtr, sendcnts, sdispls, SortedElemPtr, recvcnts, rdispls, comm);
+#ifdef _PROFILE_SORT
+	 		sample_do_all2all.stop();
+#endif							
+      arr.swap(SortedElem);
+      SortedElem.clear();
+      delete [] sendcnts;
+      sendcnts = NULL;
+
+      delete [] recvcnts;
+      recvcnts = NULL;
+
+      delete [] sdispls;
+      sdispls = NULL;
+
+      delete [] rdispls;
+      rdispls = NULL;
+
+#ifdef _PROFILE_SORT
+	 		seq_sort.start();
+#endif
+      omp_par::merge_sort(&arr[0], &arr[nsorted]);
+#ifdef _PROFILE_SORT
+	 		seq_sort.stop();
+#endif
+
+
+#ifdef _PROFILE_SORT
+	 		total_sort.stop();
+#endif
+      PROF_SORT_END
+    }//end function
+
+
+
 
 }//end namespace
 
