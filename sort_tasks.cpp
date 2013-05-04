@@ -203,15 +203,19 @@ void sortio_Class::manageSortProcess()
 
 		    gt.BeginTimer("Global Binning");
 
-		    if(useSkewSort)
-		      sortBinsSkewed = par::Sorted_approx_Select_skewed(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+		    if(useSkewSort_)
+		      {
+			printf("wtf homie\n");
+			sortBinsSkewed = par::Sorted_approx_Select_skewed(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
+		      }
 		    else
+
 		      sortBins = par::Sorted_approx_Select(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
 
 		    //sortBins = par::Sorted_approx_Select_old(sortBuffer,numSortBins_-1,BIN_COMMS_[0]);
 		    gt.EndTimer("Global Binning");
 
-		    if(useSkewSort)
+		    if(useSkewSort_)
 		      assert(sortBinsSkewed.size() == numSortBins_ - 1 );
 		    else
 		      assert(sortBins.size() == numSortBins_ - 1 );
@@ -228,7 +232,7 @@ void sortio_Class::manageSortProcess()
 		    std::vector<int> writeCounts;		    
 		    gt.BeginTimer("Bucket and Write");
 
-		    if(useSkewSort)
+		    if(useSkewSort_)
 		      writeCounts = par::bucketDataAndWriteSkewed(sortBuffer,sortBinsSkewed,
 								  tmpFilename,BIN_COMMS_[0]);
 		    else
@@ -262,7 +266,7 @@ void sortio_Class::manageSortProcess()
     {
       if(!isBinTask_[0])
 	{
-	  if(useSkewSort)
+	  if(useSkewSort_)
 	    sortBinsSkewed.resize(numSortBins_-1);
 	  else
 	    sortBins.resize(numSortBins_-1);
@@ -274,7 +278,7 @@ void sortio_Class::manageSortProcess()
 
       if(binNum_ == 0 && binRanks_[0] == 1)
 	{
-	  if(useSkewSort)
+	  if(useSkewSort_)
 	    binOrigSkew = sortBinsSkewed;
 	  else
 	    binOrig = sortBins;
@@ -283,7 +287,7 @@ void sortio_Class::manageSortProcess()
       MPI_Datatype MPISORT_TYPE = par::Mpi_datatype<sortRecord>::value();
       MPI_Datatype MPIINTL_TYPE = par::Mpi_datatype<DendroIntL>::value();
 
-      if(useSkewSort)
+      if(useSkewSort_)
 	{
 	  // doing something quick and dirty to send an vector<pair>; do it individually
 	  std::vector<sortRecord> binTmp(sortBinsSkewed.size());
@@ -311,12 +315,14 @@ void sortio_Class::manageSortProcess()
       // double check 
 
       if(binNum_ == 0 && binRanks_[0] == 1)
-	if(useSkewSort)
-	  for(size_t i=0;i<binOrigSkew.size();i++)
-	    assert(binOrigSkew[i] == sortBinsSkewed[i]);
-	else
-	  for(size_t i=0;i<binOrig.size();i++)
-	    assert(binOrig[i] == sortBins[i]);
+	{
+	  if(useSkewSort_)
+	    for(size_t i=0;i<binOrigSkew.size();i++)
+	      assert(binOrigSkew[i] == sortBinsSkewed[i]);
+	  else
+	    for(size_t i=0;i<binOrig.size();i++)
+	      assert(binOrig[i] == sortBins[i]);
+	}
     }
 
   // Transfer ownership to next BIN group
