@@ -443,7 +443,7 @@ namespace par {
 	   std::vector<int> bucketDataAndWrite(std::vector<T> &in, std::vector<T> splitters, 
 					       const char* filename, MPI_Comm comm);
 	 template <typename T>
-	   int bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters,
+	   std::vector<int> bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters,
 					 char* filename, MPI_Comm comm); 
 
   /**

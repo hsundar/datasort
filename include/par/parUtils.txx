@@ -4731,7 +4731,7 @@ namespace par {
 //===============================================================================================================================================
 
 	 template <typename T>
-     int bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters, char* filename, MPI_Comm comm) {
+	 std::vector<int> bucketDataAndWriteSkewed (std::vector<T> &in, std::vector< std::pair<T, DendroIntL> > splitters, char* filename, MPI_Comm comm) {
         int npes, myrank;
         MPI_Comm_size(comm, &npes);
         MPI_Comm_rank(comm, &myrank);
@@ -4743,6 +4743,7 @@ namespace par {
         omp_par::merge_sort(&in[0], &in[in.size()]);
 
         unsigned int k = splitters.size();
+	std::vector<int> writeCounts(k+1,0);
        
         // locally bin the data.
         std::vector<int> bucket_size(k+1), bucket_disp(k+2); 
@@ -4777,7 +4778,7 @@ namespace par {
 
         for(int i=0; i<k+1; i++) bucket_size[i] = bucket_disp[i+1] - bucket_disp[i]; 
 
-#if 0
+#if 1
         FILE* fp;
 #else
         int fd;
@@ -4789,10 +4790,11 @@ namespace par {
           std::vector<T> bucket(bucket_size[i]);
           std::copy(&in[bucket_disp[i]], &in[bucket_disp[i+1]], bucket.begin() );
           par::partitionW<T>(bucket, NULL, comm);
+	  writeCounts[i] = bucket.size();
 
           // write out ?
           sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
-#if 0          
+#if 1         
           fp = fopen(fname, "wb");
           fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
           fclose(fp);
@@ -4810,7 +4812,8 @@ namespace par {
           bucket.clear();
         }
 
-        return 0;
+        //return 0;
+	return(writeCounts);
 
      }
 
