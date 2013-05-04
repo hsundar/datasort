@@ -283,9 +283,6 @@ void sortio_Class::manageSortProcess()
 	  else
 	    binOrig = sortBins;
 
-	  printf("origsize  = %zi\n",binOrigSkew.size());
-	  printf("skewsize  = %zi\n",sortBinsSkewed.size());
-      
 	  assert(binOrigSkew.size() == sortBinsSkewed.size());
 	}
       
@@ -296,42 +293,29 @@ void sortio_Class::manageSortProcess()
 	{
 	  // doing something quick and dirty to send a vector<pair>; do it individually
 
-	  //binTmp.resize(sortBinsSkewed.size());
-	  //intlTmp.resize(sortBinsSkewed.size());
+	  binTmp.resize(sortBinsSkewed.size());
+	  intlTmp.resize(sortBinsSkewed.size());
 
-	  if(binNum_ == 0 && binRanks_[0] == 1)
+	  if(binNum_ == 0 && binRanks_[0] == 0)
 	    {
 	      for(size_t i=0;i<sortBinsSkewed.size();i++)
 		{
-		  binTmp.push_back(sortBinsSkewed[i].first);
-		  intlTmp.push_back(sortBinsSkewed[i].second);
+		  binTmp[i]  = sortBinsSkewed[i].first;
+		  intlTmp[i] = sortBinsSkewed[i].second;
 		}
-
-	      //std::cout << "binTmp = " << binTmp[0] << std::endl;
 	    }
 
-	  printf("do bcast1...\n");
 	  assert( MPI_Bcast(  binTmp.data(), binTmp.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
-	  printf("[%.4i] after bcast1\n",sortRank_);
-	  
-	  MPI_Barrier(SORT_COMM);
-	  printf("do bcast2..\n");
 	  assert( MPI_Bcast( intlTmp.data(),intlTmp.size(), MPIINTL_TYPE,0,SORT_COMM) == MPI_SUCCESS);
 
 	  MPI_Barrier(SORT_COMM);
 	  
 	  sortBinsSkewed.clear();
 
-	  printf("reassemble data\n");
 	  for(size_t i=0;i<binTmp.size();i++)
-	    {
-	      sortBinsSkewed[i]  =  std::make_pair(binTmp[i],intlTmp[i]);
-	      //sortBinsSkewed[i].second = intlTmp[i];
-	      printf("i=%zi\n",i);
-	    }
-	  MPI_Barrier(SORT_COMM);
-	  printf("done reassmbling\n");
+	    sortBinsSkewed.push_back(std::make_pair(binTmp[i],intlTmp[i]));
 
+	  MPI_Barrier(SORT_COMM);
 	}
       else
 	assert( MPI_Bcast( sortBins.data(),sortBins.size(), MPISORT_TYPE,0,SORT_COMM) == MPI_SUCCESS);
@@ -342,21 +326,16 @@ void sortio_Class::manageSortProcess()
 	{
 	  if(useSkewSort_)
 	    for(size_t i=0;i<binOrigSkew.size();i++)
-	      {
-		assert(binTmp[i]  == sortBinsSkewed[i].first);
-		assert(intlTmp[i] == sortBinsSkewed[i].second);
-		std::cout << "orig2 = " << binOrigSkew[i].first << std::endl;
-		std::cout << "new2  = " << sortBinsSkewed[i].first << std::endl;
-		assert(binOrigSkew[i].first == sortBinsSkewed[i].first);
-	      }
+	      assert(binOrigSkew[i] == sortBinsSkewed[i]);
 	  else
 	    for(size_t i=0;i<binOrig.size();i++)
 	      assert(binOrig[i] == sortBins[i]);
 	}
+
+      binTmp.clear();
+      intlTmp.clear();
     }
   
-  printf("koomie foo...?\n");
-
   // Transfer ownership to next BIN group
 
   if(isBinTask_[0] && numSortGroups_ > 1)
@@ -525,7 +504,9 @@ void sortio_Class::manageSortProcess()
 							  tmpFilename,BIN_COMMS_[binNum_]);
 							  
 		  gt.EndTimer("Bucket and Write");	    
-		  
+
+		  if(writeCounts.size() != numSortBins_)
+		    printf("[%.4i] expected %i, but got %zi\n",sortRank_,numSortBins_,writeCounts.size());
 		  assert(writeCounts.size() == numSortBins_ );
 		  tmpWriteSizes.push_back(writeCounts);
 	      
@@ -593,6 +574,26 @@ void sortio_Class::manageSortProcess()
       
       assert (MPI_Reduce(&numWrittenLocal,&numWrittenGlobal,1,MPI_INT,MPI_SUM,0,SORT_COMM) == MPI_SUCCESS);
 
+      int maxPerBinLocal = 0;
+      
+      for(int ibin=0;ibin<numSortBins_;ibin++)
+	{
+	  int count = 0;
+	  for(size_t i=0;i<tmpWriteSizes.size();i++)
+	    count += tmpWriteSizes[i][ibin];
+	  
+	  if(count > maxPerBinLocal)
+	    maxPerBinLocal = count;
+        }
+      
+      assert (MPI_Allreduce(&maxPerBinLocal,&maxPerBin,1,MPI_INT,MPI_MAX,SORT_COMM) == MPI_SUCCESS);
+      
+      //      assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
+      
+      if(isMasterSort_)
+	grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
+
+
     }
 
   // We are almost there: re-read binned data to complete final sort
@@ -631,7 +632,7 @@ void sortio_Class::manageSortProcess()
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      numSortGroups_ = 4;	// hack for testing to avoid mem overflow
+      numSortGroups_ = 1;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
@@ -697,7 +698,7 @@ void sortio_Class::manageSortProcess()
 				    binRanks_[sortGroup],tmpFilename);
 		      
 		      assert(fp != NULL);
-		      grvy_printf(DEBUG,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
+		      grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
 				  binRanks_[sortGroup],sortGroup,tmpFilename);
 		  
 		      myCount = 0;
