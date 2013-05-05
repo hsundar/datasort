@@ -250,6 +250,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/sort_mode",               1);
       iparse.Register_Var("sortio/num_sort_bins",          10);
       iparse.Register_Var("sortio/enable_skew_kernel",      0);
+      iparse.Register_Var("sortio/max_final_sorters",       1);
+      iparse.Register_Var("sortio/num_final_sort_groups",   1);
 
       if(!overrideNumSortGroups_)
 	iparse.Register_Var("sortio/num_sort_groups",       1);
@@ -264,6 +266,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
       assert( iparse.Read_Var("sortio/enable_skew_kernel",    &useSkewSort_)           != 0 );
+      assert( iparse.Read_Var("sortio/max_final_sorters",     &numMaxFinalSorters_)    != 0 );
+      assert( iparse.Read_Var("sortio/num_final_sorters",     &numFinalSortGroups_)    != 0 );
 
       if(!overrideNumSortGroups_)
 	assert( iparse.Read_Var("sortio/num_sort_groups",     &numSortGroups_        ) != 0 );
@@ -322,6 +326,8 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size,       1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size2,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numMaxFinalSorters_,   1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&numFinalSortGroups_,   1,MPI_INT,0,COMM) == MPI_SUCCESS );
   
   tmp_string = (char *)calloc(tmp_string_size,sizeof(char));
   strcpy(tmp_string,inputDir_.c_str());

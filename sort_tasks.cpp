@@ -629,12 +629,12 @@ void sortio_Class::manageSortProcess()
 
       long int numRecordsReadFromTmp = 0;
       //const int maxSortingAtOnce     = 1;   // run1/run2
-      const int maxSortingAtOnce     = 1;   // run1/run2
+      const int maxSortingAtOnce     = numMaxFinalSorters_;
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      numSortGroups_ = 1;	// hack for testing to avoid mem overflow
+      numSortGroups_ = numFinalSortGroups_; // <-- potentially limit final sort groups
 
       //      if(isBinTask_[0])
 	{

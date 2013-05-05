@@ -122,7 +122,9 @@ class sortio_Class {
   int  numStorageTargets_;		 // total # of raw storage targets (Lustre OSTs)
   int  numIoHosts_;		         // total # of desired unique IO hosts
   int  numSortHosts_;			 // total # of detected sort hosts;
-  int  numSortGroups_;			 // number of sort groups
+  int  numSortGroups_;			 // number of sort groups during bucketing process
+  int  numFinalSortGroups_;              // number of groups during final sort
+  int  numMaxFinalSorters_;		 // number of max simultaneous sorters allowed
   int  verifyMode_;			 // verification mode (1=input data)
   int  sortMode_;                        // sort mode (0=disable)
   int  useSkewSort_;			 // flag to enable skewed data sort mode
