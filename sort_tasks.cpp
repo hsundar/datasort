@@ -510,6 +510,16 @@ void sortio_Class::manageSortProcess()
 		    printf("[%.4i] expected %i, but got %zi\n",sortRank_,numSortBins_,writeCounts.size());
 		  assert(writeCounts.size() == numSortBins_ );
 		  tmpWriteSizes.push_back(writeCounts);
+
+		  // check on max size
+
+		  if(binRanks_[binNum_] == 0)
+		    {		  
+		      std::vector<int>::iterator maxIt;
+		      maxIt = std::max_element(writeCounts.begin(),writeCounts.end());
+		      grvy_printf(INFO,"[sortio][SORT][%.4i] Max records written for bucket = %i (count=%i)\n",
+				  sortRank_,*maxIt,outputCount);
+		    }
 	      
 		  sortBuffer.clear();
 		}
@@ -592,7 +602,7 @@ void sortio_Class::manageSortProcess()
       //      assert(numWrittenGlobal = (numFilesTotal_*numRecordsPerXfer));
       
       if(isMasterSort_)
-	grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBinLocal);
+	grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBin);
 
 
     }
