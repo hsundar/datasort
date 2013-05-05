@@ -604,7 +604,6 @@ void sortio_Class::manageSortProcess()
       if(isMasterSort_)
 	grvy_printf(INFO,"[sortio][FINALSORT] Max records for single bin = %i\n",maxPerBin);
 
-
     }
 
   // We are almost there: re-read binned data to complete final sort
