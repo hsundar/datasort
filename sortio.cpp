@@ -299,7 +299,9 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
       grvy_printf(INFO,"[sortio] --> Enable skewed sort kernel?    = %i\n",useSkewSort_);
       grvy_printf(INFO,"[sortio] --> Number of sort bins           = %i\n",numSortBins_);
-      grvy_printf(INFO,"[sortio] --> Number of sort groups         = %i\n",numSortGroups_);
+      grvy_printf(INFO,"[sortio] --> Number of sort groups (binning) = %i\n",numSortGroups_);
+      grvy_printf(INFO,"[sortio] --> Number of sort groups ( final ) = %i\n",numFinalSortGroups_);
+      grvy_printf(INFO,"[sortio] --> Number of sync sorts  ( final ) = %i\n",numMaxFinalSorters_);
       grvy_printf(INFO,"[sortio] --> Number of sort threads        = %i\n",numSortThreads_);
 
     }
