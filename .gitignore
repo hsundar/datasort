@@ -34,3 +34,5 @@ output.redirect.log
 core.*
 sort_dist/
 sort_code/
+ddt.*
+scaling.*.out

@@ -836,7 +836,10 @@ void sortio_Class::manageSortProcess()
 		  //par::HyperQuickSort_kway(binnedData, out, BIN_COMMS_[sortGroup]);
 		  //par::HyperQuickSort_kway(binnedData, BIN_COMMS_[sortGroup]);  // working for SC13
 		  if(useSkewSort_)
-		    par::sampleSortSkewed(binnedData,BIN_COMMS_[sortGroup]);
+		    {
+		      //par::sampleSortSkewed(binnedData,BIN_COMMS_[sortGroup]);
+		      par::sampleSort_skewed2(binnedData,BIN_COMMS_[sortGroup]);
+		    }
 		  else
 		    par::sampleSort(binnedData,BIN_COMMS_[sortGroup]);
 

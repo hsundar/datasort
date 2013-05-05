@@ -16,6 +16,8 @@ verify_mode            = 0
 sort_mode              = 3	# 0=no-sort, 1=intermediate-binning, 2=final-sort
 num_sort_groups        = 2
 num_sort_threads       = 1
+num_sort_bins          = 4
+
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/140_gib
@@ -24,6 +26,7 @@ num_sort_threads       = 1
 input_dir = /scratch/00161/karl/sort_input/1-stripe/100_tb_new
 #input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb_skewed
 #input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb_new
+
 
 output_dir = ./final_sort
 
