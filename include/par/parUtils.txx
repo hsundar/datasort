@@ -5099,6 +5099,7 @@ namespace par {
 	 		seq_sort.start();
 #endif
       omp_par::merge_sort(&arr[0], &arr[nsorted]);
+      par::partitionW<T>(arr, NULL, comm);
 #ifdef _PROFILE_SORT
 	 		seq_sort.stop();
 #endif
