@@ -178,6 +178,7 @@ void sortio_Class::manageSortProcess()
 
 	    {
 	      scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	      syncFlags2->isReadyForNewData = true;
 	      syncFlags2->condEmpty.notify_one();
 	    }
 
@@ -628,12 +629,12 @@ void sortio_Class::manageSortProcess()
 
       long int numRecordsReadFromTmp = 0;
       //const int maxSortingAtOnce     = 1;   // run1/run2
-      const int maxSortingAtOnce     = 2;   // run1/run2
+      const int maxSortingAtOnce     = 1;   // run1/run2
 
       if(isMasterSort_)
 	  sortSync->activeSorts = 0;
 
-      numSortGroups_ = 3;	// hack for testing to avoid mem overflow
+      numSortGroups_ = 1;	// hack for testing to avoid mem overflow
 
       //      if(isBinTask_[0])
 	{
@@ -699,7 +700,7 @@ void sortio_Class::manageSortProcess()
 				    binRanks_[sortGroup],tmpFilename);
 		      
 		      assert(fp != NULL);
-		      grvy_printf(INFO,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
+		      grvy_printf(DEBUG,"[sortio][FINALSORT][%.4i] Group %i Read in file %s\n",
 				  binRanks_[sortGroup],sortGroup,tmpFilename);
 		  
 		      myCount = 0;
