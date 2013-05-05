@@ -4635,7 +4635,7 @@ namespace par {
   // new skewed-data support from Hari - 5/3/2013
 
 	template<typename T>
-		std::vector<std::pair<T, DendroIntL> > Sorted_approx_Select_skewed (std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+		std::vector<std::pair<T, DendroIntL> > Sorted_approx_Select_skewed_old (std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
 			int rank, npes;
       MPI_Comm_size(comm, &npes);
 			MPI_Comm_rank(comm, &rank);
@@ -4794,7 +4794,8 @@ namespace par {
 	  writeCounts[i] = bucket.size();
 
           // write out ?
-          sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
+          //sprintf(fname, "%s_%d_%03d.dat", filename, myrank, i);
+          sprintf(fname, "%s_%03d.dat", filename, i);
 #if 1         
           fp = fopen(fname, "wb");
           fwrite(&bucket[0], sizeof(T), bucket.size(), fp);
@@ -5108,6 +5109,117 @@ namespace par {
 #endif
       PROF_SORT_END
     }//end function
+
+
+  // latest update on 5/5/13 - 9:12am from hari
+	template<typename T>
+		std::vector<std::pair<T, DendroIntL> > Sorted_approx_Select_skewed (std::vector<T>& arr, unsigned int kway, MPI_Comm comm) {
+			int rank, npes;
+      MPI_Comm_size(comm, &npes);
+			MPI_Comm_rank(comm, &rank);
+			
+      //! added for overflow
+      DendroIntL tmpInt;
+
+			//-------------------------------------------
+      DendroIntL totSize, nelem = arr.size(); 
+      par::Mpi_Allreduce<DendroIntL>(&nelem, &totSize, 1, MPI_SUM, comm);
+			
+      //! This is the number of samples I use per host
+      //! try to keep num_sample*npes < 100M (maybe 1B is fine as well)
+      int num_samples = 10000; // was 1000
+
+			//Determine splitters. O( log(N/p) + log(p) )        
+      //! number of splitters, using tmpLong, just to be sure
+      tmpInt = num_samples * kway * nelem;
+      int splt_count = tmpInt/totSize; 
+      
+      //! check that npes <= num_buckets*num_samples;
+      //! We DONT want this to happen for the skewed case ...
+      if (npes > num_samples*kway) splt_count = (((float)rand()/(float)RAND_MAX)*totSize<tmpInt?1:0);
+      
+      if (splt_count > nelem) splt_count = nelem;
+     
+      //! the rest of the code need not change ... 
+      // long should be sufficient for some time at least 
+      // 1<<63 <- 9,223,372,036,854,775,808 (9 Quintillion )  
+      std::vector<T>          splitters(splt_count); 
+      std::vector<DendroIntL> dup_ranks(splt_count); 
+      for(size_t i=0;i<splt_count;i++) {
+        dup_ranks[i] = (2*i*totSize/npes) + rand()%nelem;
+        splitters[i] =  arr[rand()%nelem];
+      }
+
+      // std::cout << rank << ": got splitters and indices " << std::endl;
+      // Gather all splitters. O( log(p) )
+      int glb_splt_count;
+      std::vector<int> glb_splt_cnts(npes);
+      std::vector<int> glb_splt_disp(npes,0);
+      
+      par::Mpi_Allgather<int>(&splt_count, &glb_splt_cnts[0], 1, comm);
+      omp_par::scan(&glb_splt_cnts[0],&glb_splt_disp[0],npes);
+      glb_splt_count = glb_splt_cnts[npes-1] + glb_splt_disp[npes-1];
+      
+      std::vector<T>          glb_splitters (glb_splt_count);
+      std::vector<DendroIntL> glb_dup_ranks (glb_splt_count);
+      MPI_Allgatherv(&    dup_ranks[0], splt_count, par::Mpi_datatype<DendroIntL>::value(), 
+                     &glb_dup_ranks[0], &glb_splt_cnts[0], &glb_splt_disp[0], 
+                     par::Mpi_datatype<DendroIntL>::value(), comm);
+      MPI_Allgatherv(&    splitters[0], splt_count, par::Mpi_datatype<T>::value(), 
+                     &glb_splitters[0], &glb_splt_cnts[0], &glb_splt_disp[0], 
+                     par::Mpi_datatype<T>::value(), comm);
+
+
+      // std::cout << rank << ": ranking splitters " << std::endl;
+      // rank splitters. O( log(N/p) + log(p) )
+      std::vector<DendroIntL> disp(glb_splt_count, 0);
+      DendroIntL dLow, dHigh;
+      if(nelem>0){
+        #pragma omp parallel for
+        for(size_t i=0; i<glb_splt_count; i++){
+          // disp[i] = std::lower_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          dLow = std::lower_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          dHigh = std::upper_bound(&arr[0], &arr[nelem], glb_splitters[i]) - &arr[0];
+          if ( (dHigh-dLow) > 1 ) {
+            DendroIntL sRank = glb_dup_ranks[i]*npes/2/totSize;
+            if (sRank < rank ) {
+              disp[i] = dLow;
+            } else if (sRank > rank) {
+              disp[i] = dHigh;
+            } else {
+              disp[i] = glb_dup_ranks[i] - (2*rank*totSize/npes);
+            }
+          } else {
+            disp[i] = dLow;
+          }
+        }
+      }
+      std::vector<DendroIntL> glb_disp(glb_splt_count, 0);
+     
+      // std::cout << rank << ": all reduce " << std::endl;
+      MPI_Allreduce(&disp[0], &glb_disp[0], glb_splt_count, par::Mpi_datatype<DendroIntL>::value(), MPI_SUM, comm);
+        
+	    std::vector< std::pair<T, DendroIntL> > split_keys(kway);
+      std::pair<T, DendroIntL> key_pair;
+      #pragma omp parallel for
+      for (unsigned int qq=0; qq<kway; qq++) {
+				DendroIntL* _disp = &glb_disp[0];
+				DendroIntL optSplitter = ((qq+1)*totSize)/(kway+1);
+        // if (!rank) std::cout << "opt " << qq << " - " << optSplitter << std::endl;
+        for(size_t i=0; i<glb_splt_count; i++) {
+        	if(labs(glb_disp[i] - optSplitter) < labs(*_disp - optSplitter)) {
+						_disp = &glb_disp[i];
+					}
+				}
+        
+        key_pair.first  = glb_splitters[_disp - &glb_disp[0]];
+        key_pair.second = glb_dup_ranks[_disp - &glb_disp[0]];
+        split_keys[qq]  = key_pair; // 
+			}
+			
+      // std::cout << rank << ": all done" << std::endl;
+			return split_keys;
+		}
 
 
 
