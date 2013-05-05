@@ -40,7 +40,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
   if(isMasterIO_)
     {
-      for(int iter=0;iter<20;iter++)
+      for(int iter=0;iter<50;iter++)
 	{
 	  if(isFirstRead_)
 	    usleep(100000);
