@@ -60,7 +60,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
   messageSize = initialRecordsPerFile*REC_SIZE;
 
-  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1000*1000);
+  assert(messageSize <= MAX_FILE_SIZE_IN_MBS*1000*1000);
 
   if(isMasterIO_)
     grvy_printf(INFO,"[sortio][IO/XFER] Message size for XFERS = %i\n",messageSize);

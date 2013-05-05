@@ -40,7 +40,7 @@ void sortio_Class::beginRecvTransferProcess()
   assert( MPI_Bcast(&recordsPerFile,1,MPI_UNSIGNED_LONG,0,XFER_COMM) == MPI_SUCCESS );
   messageSize = recordsPerFile*REC_SIZE;
 
-  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1000*1000);
+  assert(messageSize <= MAX_FILE_SIZE_IN_MBS*1000*1000);
 
   // also before beginning main xfer loop, we init shared-memory
   // segments for transfer to first SORT_COMM rank on this same
@@ -205,8 +205,7 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  // verifyMode = 2 -> dump data received in XFER_COMM to compare against input
 
-	  if(true)
-	    //if(verifyMode_ == 2)
+	  if(verifyMode_ == 2)
 	    {
 	      char filename[1024];
 	      sprintf(filename,"./partfromrecv%i",iter);
