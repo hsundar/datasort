@@ -9,7 +9,8 @@ num_files = 3000
 
 max_read_buffers       = 100
 max_file_size_in_mbs   = 100
-max_messages_watermark =  20         # max messages in flight per xfer task
+#max_messages_watermark =  20         # max messages in flight per xfer task
+max_messages_watermark =  1         # max messages in flight per xfer task
 
 verify_mode            = 0
 sort_mode              = 3	# 0=no-sort, 1=intermediate-binning, 2=final-sort

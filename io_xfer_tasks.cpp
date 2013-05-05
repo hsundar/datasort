@@ -60,7 +60,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
   messageSize = initialRecordsPerFile*REC_SIZE;
 
-  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1024*1024);
+  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1000*1000);
 
   if(isMasterIO_)
     grvy_printf(INFO,"[sortio][IO/XFER] Message size for XFERS = %i\n",messageSize);
@@ -109,6 +109,7 @@ void sortio_Class::Transfer_Tasks_Work()
 		destRanks[i]   = CycleDestRank();
 		//messageTags[i] = ++tagXFER;
 		tagXFER += 2;
+		//tagXFER += maxMessagesToSend_+1;
 		messageTags[i] = tagXFER;
 
 		numBuffersToTransfer++;
@@ -193,9 +194,36 @@ void sortio_Class::Transfer_Tasks_Work()
 	      //MPI_Isend(&numFilesToSend,1,MPI_INT,destRank,tagLocal,XFER_comm,&requestHandle0);
 	      int payLoadSize = numFilesToSend*messageSize;
 
+	      // debug testing koomie
+
+	      usleep(200000);
+
 	      MPI_Bsend(&payLoadSize,1,MPI_INT,destRank,tagLocal,XFER_COMM);
+
+#define NEW_ALLOC
+#ifdef NEW_ALLOC
+
+	      //if(numFilesToSend > 1) // koomie hack testing debug
+	      //		assert(buffers_[bufNum+1] = buffers_
+	      //MPI_Isend(buffers_[bufNum+1],payLoadSize,
+	      //MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
+	      //else
+
+	      MPI_Isend(buffers_[bufNum],payLoadSize,
+			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
+
+		//		MPI_Isend(buffers_[bufNum],payLoadSize,
+		//			  MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
+
+#else
+	      //	      for(i=0;i<numFilesToSend;i++)
+	      //MPI_Isend(&buffers_[bufNum+i][0],messageSize,
+	      //	  MPI_UNSIGNED_CHAR,destRank,tagLocal+1+i,XFER_COMM,&requestHandle);
+
 	      MPI_Isend(&buffers_[bufNum][0],payLoadSize,
 			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
+
+#endif
 
 	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issued iSend to rank %i (tag = %i)\n",
 			  ioRank_,destRank,tagLocal);
@@ -238,19 +266,19 @@ void sortio_Class::Transfer_Tasks_Work()
       
       checkForSendCompletion(waitFlag=false,0,iter=count);
       
-      // Sleep a bit on iterations which did not have any data to send
-
-#if 0      
-      if(numBuffersToTransfer == 0)
-	usleep(USLEEP_INTERVAL);
-#endif
-
       count++;
       
     } //  end xfer of all files
 
   if(isMasterIO_)
     grvy_printf(INFO,"[sortio][IO/XFER][%.4i]: data XFER COMPLETED\n",ioRank_);
+
+  // gather up amount delivered
+
+#if 0
+  int dataTransferredLocal = 0;
+  MPI_Allreduce(&dataTransferredLocal,&dataTransferred_,1,MPI_LONG,MPI_SUM,XFER_COMM);
+#endif
 
   fflush(NULL);
 

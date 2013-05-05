@@ -24,10 +24,11 @@ void sortio_Class::beginRecvTransferProcess()
   if(xferRank_ < numIoTasks_)	// rules out the sending tasks in XFER_COMM
     return;
 
+  bool firstEntry    = true;
   bool startTearDown = false;
-  int recvRank = numIoTasks_;
-  int iter     = 0;
-  int tagXFER  = 1000;
+  int recvRank       = numIoTasks_;
+  int iter           = 0;
+  int tagXFER        = 1000;
   int messageSizeIncoming;
   unsigned long int recordsPerFile;
   int messageSize;
@@ -39,7 +40,7 @@ void sortio_Class::beginRecvTransferProcess()
   assert( MPI_Bcast(&recordsPerFile,1,MPI_UNSIGNED_LONG,0,XFER_COMM) == MPI_SUCCESS );
   messageSize = recordsPerFile*REC_SIZE;
 
-  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1024*1024);
+  assert(messageSize < MAX_FILE_SIZE_IN_MBS*1000*1000);
 
   // also before beginning main xfer loop, we init shared-memory
   // segments for transfer to first SORT_COMM rank on this same
@@ -98,21 +99,29 @@ void sortio_Class::beginRecvTransferProcess()
   gt.BeginTimer("XFER/Recv");
   dataTransferred_ = 0;
 
+#define USE_RING
+#ifdef USE_RING
+  while(true)
+#else
   for(int ifile=0;ifile<numFilesTotal_;ifile++)
+#endif
     {
-      //tagXFER++;
       tagXFER += 2;
+      //tagXFER += maxMessagesToSend_+1;
 
       // receive current file count tally from previous neighbor; we
       // do this to allow for more than 1 file to be transferred;
       // using a ring communication to avoid synchronizing across all
       // receiving tasks
 
-#define USE_RING
 #ifdef USE_RING
 
-      if( (ifile == 0) && (xferRank_ == numIoTasks_) )
-	numFilesReceived = 0;
+      //      if( (ifile == 0) && (xferRank_ == numIoTasks_) )
+      if( firstEntry && (xferRank_ == numIoTasks_) )
+	{
+	  numFilesReceived = 0;
+	  firstEntry = false;
+	}
       else if(xferRank_ == recvRank)
 	{
 	  int srcRank = xferRank_ - 1;
@@ -143,15 +152,11 @@ void sortio_Class::beginRecvTransferProcess()
       if(xferRank_ == recvRank)
 	{
 
-	  grvy_printf(DEBUG,"[sortio][IO/Recv][%.4i] syncFlag[0] = %i, recvRank = %i (file = %i)\n",
-		  xferRank_,syncFlags[0],recvRank,ifile);
-
 	  // possibly stall while we wait for last data transfer to
 	  // local SORT rank to complete
 
 	  {
 	    scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
-	    fflush(NULL);
 
 	    if(!syncFlags2->isReadyForNewData)
 	      {
@@ -167,11 +172,13 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  // receive info regarding size (number) of messages, followed by raw data
 
+	  
 	  MPI_Recv(&messageSizeIncoming,1,MPI_INT,MPI_ANY_SOURCE,tagXFER,XFER_COMM,&status1);
 
 	  numFilesReceived += messageSizeIncoming/messageSize;
 
-#ifdef USE_RING
+//#ifdef USE_RING
+
 	  // pass current count to next rank; initiate tear-down
 	  // procedure if we have all the data
 
@@ -186,10 +193,8 @@ void sortio_Class::beginRecvTransferProcess()
 	      startTearDown = true;
 	    }
 
-
 	  //printf("ring: sending %i files to dest %i\n",numFilesReceived,destRank);      
 	  MPI_Send(&numFilesReceived,1,MPI_INT,destRank,13,XFER_COMM);
-#endif
 
 	  // now, actual data receive
 	  MPI_Recv(&buffer[0],messageSizeIncoming,MPI_UNSIGNED_CHAR,status1.MPI_SOURCE,tagXFER+1,XFER_COMM,&status2);
@@ -200,14 +205,15 @@ void sortio_Class::beginRecvTransferProcess()
 
 	  // verifyMode = 2 -> dump data received in XFER_COMM to compare against input
 
-	  if(verifyMode_ == 2)
+	  if(true)
+	    //if(verifyMode_ == 2)
 	    {
 	      char filename[1024];
 	      sprintf(filename,"./partfromrecv%i",iter);
 	      FILE *fp = fopen(filename,"wb");
 	      assert(fp != NULL);
 	      
-	      fwrite(&buffer[0],sizeof(char),messageSize,fp);
+	      fwrite(&buffer[0],sizeof(char),messageSizeIncoming,fp);
 	      fclose(fp);
 	    }
 
@@ -221,36 +227,16 @@ void sortio_Class::beginRecvTransferProcess()
 	    syncFlags2->bufSizeAvail      = messageSizeIncoming;
 	  }
 
+	  dataTransferred_ += messageSizeIncoming;
+
 	} // end if(xferRank_ == recvRank)
 
       //      dataTransferred_ += messageSize;
 
-      dataTransferred_ += messageSizeIncoming;
+      //dataTransferred_ += messageSizeIncoming;
 
       if(xferRank_ == recvRank)
 	{
-#if 0
-	  numFilesReceived += messageSizeIncoming/messageSize;
-
-	  // pass current count to next rank; initiate tear-down
-	  // procedure if we have all the data
-
-	  int destRank = xferRank_ + 1;
-	  bool startTearDown = false;
-
-	  if(destRank >= numXferTasks_)
-	    destRank = numIoTasks_;
-	  
-	  if(numFilesReceived == numFilesTotal_)
-	    {
-	      numFilesReceived = -(numSortHosts_ - 1);
-	      startTearDown = true;
-	    }
-
-	  //printf("ring: sending %i files to dest %i\n",numFilesReceived,destRank);      
-	  MPI_Send(&numFilesReceived,1,MPI_INT,destRank,13,XFER_COMM);
-#endif
-
 #ifdef USE_RING	  
 	  if(startTearDown)
 	    break;
@@ -266,6 +252,11 @@ void sortio_Class::beginRecvTransferProcess()
 
   gt.EndTimer("XFER/Recv");
 
+#if 0
+  int dataTransferredLocal = dataTransferred_;
+  MPI_Allreduce(&dataTransferredLocal,&dataTransferred_,1,MPI_LONG,MPI_SUM,XFER_COMM);
+#endif
+
   // receive final handshake from sort task ( to guarantee SHM buffers stay in scope)
 
   gt.BeginTimer("XFER/Wait for final sort copy");
@@ -277,7 +268,11 @@ void sortio_Class::beginRecvTransferProcess()
   if(xferRank_ == numIoTasks_)
     {
       grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: ALL DONE\n",xferRank_);
-      grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
+      //grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total received (bytes) = %zi\n",xferRank_,dataTransferred_);
+#if 0
+      grvy_printf(INFO,"[sortio][XFER/Recv][%.4i]: Total records received  = %zi\n",xferRank_,
+		  dataTransferred_/REC_SIZE);
+#endif
     }
 
   gt.EndTimer("XFER/Wait for final sort copy");
