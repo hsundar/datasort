@@ -182,6 +182,7 @@ void sortio_Class::manageSortProcess()
 
 	    {
 	      scoped_lock<interprocess_mutex> lock(syncFlags2->mutex);
+	      syncFlags2->isReadyForNewData = true;
 	      syncFlags2->condEmpty.notify_one();
 	    }
 
