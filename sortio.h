@@ -53,26 +53,33 @@ void printResults(MPI_Comm comm);
 
 class MsgRecord {
   
-  //int bufNum_;			// buffer num in use by message
   std::vector<int> bufNums_;	// buffer num in use by message
   MPI_Request      handle_;	// MPI message request handle
   
 public:
-  //MsgRecord() : bufNum_(0), handle_(0) { }
   MsgRecord() : handle_(0) { }
-  //MsgRecord(const int bufNum,const int handle) {bufNum_=bufNum; handle_ = handle;}
   MsgRecord(std::vector<int> bufNums,const int handle) 
   {
     bufNums_= bufNums; 
     handle_ = handle;
   }
 
-  // we call it a match if bufNum equals
+  // we call it a match if bufNum_ equals
 
-  bool operator == (const MsgRecord &rhs) { return(rhs.bufNums_ == bufNums_ ); }
+  bool operator == (const MsgRecord &rhs) 
+  { 
+    if(rhs.bufNums_.size() != bufNums_.size())
+      return(false);
+
+    for(size_t i=0;i<bufNums_.size();i++)
+      if(rhs.bufNums_[i] != bufNums_[i])
+	return(false);
+
+    return(true);
+  }
 
   // access
-  //int getBufNum() { return(bufNum_); }
+
   std::vector<int> getBufNums() { return(bufNums_); }
   int getHandle() { return(handle_); }
 };

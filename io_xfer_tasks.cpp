@@ -191,46 +191,20 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      // step3: send buffers to XFER ranks asynchronously
 	      
-	      //MPI_Isend(&numFilesToSend,1,MPI_INT,destRank,tagLocal,XFER_comm,&requestHandle0);
 	      int payLoadSize = numFilesToSend*messageSize;
 
-	      // debug testing koomie
-
-	      usleep(200000);
+	      //usleep(200000); // debug testing koomie to force multipe file xfers at small scale
 
 	      MPI_Bsend(&payLoadSize,1,MPI_INT,destRank,tagLocal,XFER_COMM);
 
-#define NEW_ALLOC
-#ifdef NEW_ALLOC
-
-	      //if(numFilesToSend > 1) // koomie hack testing debug
-	      //		assert(buffers_[bufNum+1] = buffers_
-	      //MPI_Isend(buffers_[bufNum+1],payLoadSize,
-	      //MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
-	      //else
-
 	      MPI_Isend(buffers_[bufNum],payLoadSize,
 			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
-
-		//		MPI_Isend(buffers_[bufNum],payLoadSize,
-		//			  MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
-
-#else
-	      //	      for(i=0;i<numFilesToSend;i++)
-	      //MPI_Isend(&buffers_[bufNum+i][0],messageSize,
-	      //	  MPI_UNSIGNED_CHAR,destRank,tagLocal+1+i,XFER_COMM,&requestHandle);
-
-	      MPI_Isend(&buffers_[bufNum][0],payLoadSize,
-			MPI_UNSIGNED_CHAR,destRank,tagLocal+1,XFER_COMM,&requestHandle);
-
-#endif
 
 	      grvy_printf(DEBUG,"[sortio][IO/XFER][%.4i] issued iSend to rank %i (tag = %i)\n",
 			  ioRank_,destRank,tagLocal);
 	      
 	      // queue up these messages as being in flight
 	  
-	      //MsgRecord message(bufNum,requestHandle);
 	      MsgRecord message(buffersPacked,requestHandle);
 	      messageQueue_.push_back(message);
 
@@ -312,8 +286,7 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
       MPI_Request handle;
 
       bufNums = it->getBufNums();
-      //      bufNum = it->getBufNum();
-      handle = it->getHandle();
+      handle  = it->getHandle();
 
       // check if send has completed
 
@@ -329,9 +302,7 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
 
 	  it = messageQueue_.erase(it++);
 	  
-	  // re-enable this buffer for eligibility
-
-	  //addBuffertoEmptyQueue(bufNum);
+	  // re-enable these buffers for eligibility
 
 	  for(int i=0;i<bufNums.size();i++)
 	    addBuffertoEmptyQueue(bufNums[i]);
@@ -349,8 +320,6 @@ void sortio_Class::checkForSendCompletion(bool waitFlag, int waterMark, int iter
 	  MPI_Wait(&handle,&status);
 
 	  it = messageQueue_.erase(it++);
-
-	  //addBuffertoEmptyQueue(bufNum);
 
 	  for(int i=0;i<bufNums.size();i++)
 	    addBuffertoEmptyQueue(bufNums[i]);
