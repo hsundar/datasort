@@ -689,11 +689,17 @@ void sortio_Class::manageSortProcess()
 
 		  // allocate buffer space for reading in tmp data (max size computed above).
 
-		  std::vector<sortRecord> binnedData(maxPerBin*numSortBins_);
+		  //std::vector<sortRecord> binnedData(maxPerBin*numSortBins_);
+
+		  //std::vector<sortRecord> singleRecord(1);
+		  sortRecord singleRecord;
       
 		  int recordsPerBinLocal = 0;
 		  int recordsPerBinMax   = 0;
 		  size_t startIndex      = 0;
+
+		  const int alloc_chunk  = 256*1000*1000/sizeof(singleRecord);
+		  std::vector<sortRecord> binnedData(alloc_chunk);
 
 		  gt.BeginTimer("Read Temp Data");
 	      
@@ -715,8 +721,11 @@ void sortio_Class::manageSortProcess()
 		      myCount = 0;
 		      while(fread(&binnedData[startIndex],sizeof(sortRecord),1,fp) == 1)
 			{
+			  binnedData.push_back(singleRecord);
 			  startIndex++;
-			  assert(startIndex < binnedData.size());
+			  //assert(startIndex < binnedData.size());
+			  if(startIndex == binnedData.size())
+			    binnedData.resize(binnedData.size()+alloc_chunk);
 			  myCount++;
 			}
 		      
