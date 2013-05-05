@@ -176,6 +176,7 @@ class sortio_Class {
   int      MAX_READ_BUFFERS;	         // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;         // maximum individual file size to be read in
   int      MAX_MESSAGES_WATERMARK;       // max num of allowed messages in flight per host
+
   unsigned char *rawReadBuffer_;	 // raw read buffer
   std::vector<unsigned char *> buffers_; // read buffer pointers into rawReadBuffer
   std::list <size_t> emptyQueue_;        // queue to flag empty read buffers

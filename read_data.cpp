@@ -13,6 +13,8 @@ void sortio_Class::Init_Read()
   if(!isIOTask_ && (sortMode_ > 0) )
     return;
 
+  usleep(100000);
+
   gt.BeginTimer("Init Read");
 
   // Initialize read buffers - todo: think about memory pinning here
@@ -29,13 +31,12 @@ void sortio_Class::Init_Read()
 #define NEW_ALLOC
 
 #ifdef NEW_ALLOC
+
       
       size_t sizeOfFile = MAX_FILE_SIZE_IN_MBS*1000L*1000L;
+      size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000L*1000L;
 
-      rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS,sizeOfFile);
-
-      //rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000L*1000L,
-      //    sizeof(unsigned char));
+      rawReadBuffer_ = (unsigned char*) calloc(bufSize,sizeof(unsigned char));
 
       if(rawReadBuffer_ == NULL)
 	{
@@ -43,16 +44,24 @@ void sortio_Class::Init_Read()
 		      ioRank_);
 	  MPI_Abort(GLOB_COMM,60);
 	}
+      else
+	{
+	  grvy_printf(INFO,"[sortio][IO][%.4i] Allocated %8.3f GBs buffer for raw read cache\n",
+		      ioRank_,(1.0*sizeOfFile/(1.0*1000*1000*1000)*MAX_READ_BUFFERS));
+	}
 #endif
+
+      //      size_t bufSize = MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000L*1000L;
 
       for(int i=0;i<MAX_READ_BUFFERS;i++)
 	{
 
 #ifdef NEW_ALLOC
-	  buffers_[i] = &rawReadBuffer_[i*MAX_FILE_SIZE_IN_MBS*1000*1000];
+	  buffers_[i] = &rawReadBuffer_[i*MAX_FILE_SIZE_IN_MBS*1000L*1000L];
 #else
 	  buffers_[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1000*1000,sizeof(unsigned char));
 #endif
+
 	  assert(buffers_[i] != NULL);
 	  
 	  // Flag buffer as being eligible to receive data
@@ -254,11 +263,7 @@ void sortio_Class::ReadFiles()
       // initialize for next file read
 
       if(sortMode_ > 0)
-	{
-	  buffer         = buffers_[buf_num];
-	  printf("[%.4i] buffer = %i\n",ioRank_,buf_num);
-	  //	  assert(buf_num < MAX_READ_BUFFERS);
-	}
+	buffer         = buffers_[buf_num];
 
       int expectedSize;
       records_per_file = 0;
@@ -279,7 +284,7 @@ void sortio_Class::ReadFiles()
       const int MAX_RETRIES = 5;
       int num_retries = 0;
 
-      //if(isFirstRead_)
+      //      if(isFirstRead_)
       if(true)
 	{
 	  while(read_size == expectedSize)
@@ -297,10 +302,7 @@ void sortio_Class::ReadFiles()
 	      else if(sortMode_ == 0)
 		read_size = fread(&readBuf_[0],sizeof(sortRecord),1,fp);
 	      else
-		{
-		  //printf("records_per_file = %uli\n",records_per_file);
-		  read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
-		}
+		read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
 	      
 	      if(read_size == 0)
 		break;
@@ -342,6 +344,7 @@ void sortio_Class::ReadFiles()
 		      ioRank_,records_per_file,recordsPerFile_);
 	  grvy_printf(ERROR,"[sortio][IO/Read][%.4i] filename = %s, buffer num = %i\n",
 		      ioRank_,infile.c_str(),buf_num);
+	  assert(records_per_file == recordsPerFile_);
 	}
 
       if(sortMode_ > 0)

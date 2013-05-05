@@ -193,7 +193,7 @@ void sortio_Class::Transfer_Tasks_Work()
 	      
 	      int payLoadSize = numFilesToSend*messageSize;
 
-	      usleep(200000); // debug testing koomie to force multipe file xfers at small scale (hack)
+	      //usleep(200000); // debug testing koomie to force multipe file xfers at small scale (hack)
 
 	      MPI_Bsend(&payLoadSize,1,MPI_INT,destRank,tagLocal,XFER_COMM);
 

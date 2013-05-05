@@ -7,7 +7,7 @@
 num_io_hosts  = 2
 num_files = 3000
 
-max_read_buffers       = 30
+max_read_buffers       = 80
 max_file_size_in_mbs   = 100
 max_messages_watermark =  20         # max messages in flight per xfer task
 
