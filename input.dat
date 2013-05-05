@@ -10,6 +10,7 @@ num_files = 3000
 max_read_buffers       = 100
 max_file_size_in_mbs   = 100
 max_messages_watermark =  20         # max messages in flight per xfer task
+
 enable_skew_kernel     = 1
 verify_mode            = 0
 sort_mode              = 3	# 0=no-sort, 1=intermediate-binning, 2=final-sort
@@ -21,9 +22,8 @@ num_sort_threads       = 1
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/557_gib
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/1392_gib
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/100_tb_new
-input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb_skewed
-
-#output_dir = /scratch/00161/karl/sort_output/1-stripe/100_tb_prod
+#input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb_skewed
+input_dir  = /scratch/00161/karl/sort_input/1-stripe/100_tb_new
 
 output_dir = ./final_sort
 

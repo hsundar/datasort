@@ -37,6 +37,7 @@ sortio_Class::sortio_Class()
   binNum_                   = -1;
   localSortRank_            = -1;
   localXferRank_            = -1;
+  maxMessagesToSend_        = 3;
   fileBaseName_             = "part";
   numStorageTargets_        = 348;
 
@@ -251,7 +252,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/num_sort_bins",          10);
       iparse.Register_Var("sortio/enable_skew_kernel",      0);
       iparse.Register_Var("sortio/max_final_sorters",       1);
-      iparse.Register_Var("sortio/num_final_sort_groups",   1);
+      iparse.Register_Var("sortio/num_final_sorters",       1);
 
       if(!overrideNumSortGroups_)
 	iparse.Register_Var("sortio/num_sort_groups",       1);
@@ -825,6 +826,17 @@ void sortio_Class::SplitComm()
 
   if(master)
     free(hostnames_ALL);  
+
+  // initialize space for small buffered sends
+
+  if(isXFERTask_)
+    {
+      int numMax = 256*numIoHosts_;
+      int bufSize;
+      MPI_Pack_size(numMax,MPI_INT,XFER_COMM,&bufSize);
+      bsendBuf_ = (char *)malloc(bufSize);
+      MPI_Buffer_attach( bsendBuf_, bufSize );
+    }
 
   gt.EndTimer("SplitComm");
   return;

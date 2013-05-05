@@ -25,10 +25,28 @@ void sortio_Class::Init_Read()
   else
     {
       buffers_.resize(MAX_READ_BUFFERS);
+      
+#define NEW_ALLOC
+
+#ifdef NEW_ALLOC
+      
+      rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000,sizeof(unsigned char));
+
+      if(rawReadBuffer_ == NULL)
+	{
+	  grvy_printf(ERROR,"[sortio][IO][%.4i] Unable to allocate sufficient read buffer space...terminating\n");
+	  MPI_Abort(GLOB_COMM,60);
+	}
+#endif
 
       for(int i=0;i<MAX_READ_BUFFERS;i++)
 	{
-	  buffers_[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1024*1024,sizeof(unsigned char));
+
+#ifdef NEW_ALLOC
+	  buffers_[i] = &rawReadBuffer_[i*MAX_FILE_SIZE_IN_MBS*1000*1000];
+#else
+	  buffers_[i] = (unsigned char*) calloc(MAX_FILE_SIZE_IN_MBS*1000*1000,sizeof(unsigned char));
+#endif
 	  assert(buffers_[i] != NULL);
 	  
 	  // Flag buffer as being eligible to receive data
@@ -186,7 +204,11 @@ void sortio_Class::ReadFiles()
       FILE *fp = fopen(infile.c_str(),"r");
       
       if(fp == NULL)
-	MPI_Abort(MPI_COMM_WORLD,42);
+	{
+	  grvy_printf(INFO,"[sortio][IO/Read][%.4i]: fatal error - cannot access input file for %s\n",
+		      ioRank_,infile.c_str());
+	  MPI_Abort(MPI_COMM_WORLD,42);
+	}
 
       // pick available buffer for data storage; buffer is a
       // convenience pointer here which is set to empty data storage
@@ -248,7 +270,8 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
 
       //if(isFirstRead_)
-	if(true)
+
+      if(true)
 	{
 	  while(read_size == expectedSize)
 	    {

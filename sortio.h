@@ -54,18 +54,34 @@ void printResults(MPI_Comm comm);
 
 class MsgRecord {
   
-  int bufNum_;			// buffer num in use by message
-  MPI_Request handle_;		// MPI message request handle
+  std::vector<int> bufNums_;	// buffer num in use by message
+  MPI_Request      handle_;	// MPI message request handle
   
 public:
-  MsgRecord() : bufNum_(0), handle_(0) { }
-  MsgRecord(const int bufNum,const int handle) {bufNum_=bufNum; handle_ = handle;}
+  MsgRecord() : handle_(0) { }
+  MsgRecord(std::vector<int> bufNums,const int handle) 
+  {
+    bufNums_= bufNums; 
+    handle_ = handle;
+  }
 
-  // we call it a match if bufNum equals
-  bool operator == (const MsgRecord &rhs) { return(rhs.bufNum_ == bufNum_ ); }
+  // we call it a match if bufNum_ equals
+
+  bool operator == (const MsgRecord &rhs) 
+  { 
+    if(rhs.bufNums_.size() != bufNums_.size())
+      return(false);
+
+    for(size_t i=0;i<bufNums_.size();i++)
+      if(rhs.bufNums_[i] != bufNums_[i])
+	return(false);
+
+    return(true);
+  }
 
   // access
-  int getBufNum() { return(bufNum_); }
+
+  std::vector<int> getBufNums() { return(bufNums_); }
   int getHandle() { return(handle_); }
 };
 
@@ -77,6 +93,8 @@ struct shmem_xfer_sync
   boost::interprocess::interprocess_condition condEmpty;
   boost::interprocess::interprocess_condition condFull;
   bool isReadyForNewData;
+  bool isAllDataTransferred;
+  size_t bufSizeAvail;
 };
 
 class sortio_Class {
@@ -144,6 +162,7 @@ class sortio_Class {
   int  numTasks_;		         // total # of MPI tasks available to the class
   int  numLocal_;		         // global MPI rank for clas GLOB_COMM
   MPI_Comm GLOB_COMM;		         // global MPI communicator provided as input to the class
+  char *bsendBuf_;			 // dedicated MPI buffer
 
   // Dedicated I/O tasks 
 
@@ -157,7 +176,8 @@ class sortio_Class {
   int      MAX_READ_BUFFERS;	         // number of read buffers
   int      MAX_FILE_SIZE_IN_MBS;         // maximum individual file size to be read in
   int      MAX_MESSAGES_WATERMARK;       // max num of allowed messages in flight per host
-  std::vector<unsigned char *> buffers_; // read buffers
+  unsigned char *rawReadBuffer_;	 // raw read buffer
+  std::vector<unsigned char *> buffers_; // read buffer pointers into rawReadBuffer
   std::list <size_t> emptyQueue_;        // queue to flag empty read buffers
   std::list <size_t> fullQueue_;         // queue to flag full read buffers
 
@@ -171,6 +191,7 @@ class sortio_Class {
   int      masterXFER_GlobalRank;	 // global rank of master XFER process
   int      nextDestRank_;		 // cyclic counter for next xfer rank to send data to
   int      localSortRank_;		 // MPI rank in GLOB_COMM for the first SORT task on same host
+  int      maxMessagesToSend_;           // max num of allowed messages in flight per host
   MPI_Comm XFER_COMM;		         // MPI communicator for data transfer tasks
 
   size_t   dataTransferred_;		 // amount of data transferred to receiving tasks
