@@ -486,6 +486,8 @@ namespace par {
     int sampleSort(std::vector<T>& arr, MPI_Comm comm); 
   template<typename T>
     int sampleSortSkewed(std::vector<T>& arr, MPI_Comm comm);
+  template<typename T>
+    int sampleSort_skewed2(std::vector<T>& arr, MPI_Comm comm);
 
   /**
     @brief Removes duplicates in parallel. If the input is not sorted, sample sort will be called 
