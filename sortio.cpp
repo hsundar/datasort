@@ -251,7 +251,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       iparse.Register_Var("sortio/num_sort_bins",          10);
       iparse.Register_Var("sortio/enable_skew_kernel",      0);
       iparse.Register_Var("sortio/max_final_sorters",       1);
-      iparse.Register_Var("sortio/num_final_sort_groups",   1);
+      iparse.Register_Var("sortio/num_final_sorters",       1);
 
       if(!overrideNumSortGroups_)
 	iparse.Register_Var("sortio/num_sort_groups",       1);
