@@ -30,11 +30,17 @@ void sortio_Class::Init_Read()
 
 #ifdef NEW_ALLOC
       
-      rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000*1000,sizeof(unsigned char));
+      size_t sizeOfFile = MAX_FILE_SIZE_IN_MBS*1000L*1000L;
+
+      rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS,sizeOfFile);
+
+      //rawReadBuffer_ = (unsigned char*) calloc(MAX_READ_BUFFERS*MAX_FILE_SIZE_IN_MBS*1000L*1000L,
+      //    sizeof(unsigned char));
 
       if(rawReadBuffer_ == NULL)
 	{
-	  grvy_printf(ERROR,"[sortio][IO][%.4i] Unable to allocate sufficient read buffer space...terminating\n");
+	  grvy_printf(ERROR,"[sortio][IO][%.4i] Unable to allocate sufficient read buffer space...terminating\n",
+		      ioRank_);
 	  MPI_Abort(GLOB_COMM,60);
 	}
 #endif
@@ -248,7 +254,11 @@ void sortio_Class::ReadFiles()
       // initialize for next file read
 
       if(sortMode_ > 0)
-	buffer         = buffers_[buf_num];
+	{
+	  buffer         = buffers_[buf_num];
+	  printf("[%.4i] buffer = %i\n",ioRank_,buf_num);
+	  //	  assert(buf_num < MAX_READ_BUFFERS);
+	}
 
       int expectedSize;
       records_per_file = 0;
@@ -270,7 +280,6 @@ void sortio_Class::ReadFiles()
       int num_retries = 0;
 
       //if(isFirstRead_)
-
       if(true)
 	{
 	  while(read_size == expectedSize)
@@ -288,7 +297,10 @@ void sortio_Class::ReadFiles()
 	      else if(sortMode_ == 0)
 		read_size = fread(&readBuf_[0],sizeof(sortRecord),1,fp);
 	      else
-		read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
+		{
+		  //printf("records_per_file = %uli\n",records_per_file);
+		  read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
+		}
 	      
 	      if(read_size == 0)
 		break;
