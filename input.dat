@@ -18,6 +18,9 @@ num_sort_groups        = 2
 num_sort_threads       = 1
 num_sort_bins          = 4
 
+max_final_sorters      = 2
+num_final_sorters      = 4
+
 
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/35_gib/
 #input_dir = /scratch/00161/karl/sort_input/1-stripe/140_gib
