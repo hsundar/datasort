@@ -322,9 +322,6 @@ void sortio_Class::ReadFiles()
 
 	      numRecordsRead_++;
 	      records_per_file++;
-
-	      //	      if(ioRank_ == 264)
-	      //		printf("[%i] koomie numRecordsRead = %li\n",ioRank_,numRecordsRead_);
 	    }
 	}
       else
