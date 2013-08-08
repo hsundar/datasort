@@ -110,6 +110,11 @@ void sortio_Class::Init_Read()
   }
 
   MPI_Barrier(IO_COMM);
+
+#if 1
+  free(rawReadBuffer_);
+#endif
+
   gt.EndTimer("Raw Read");
   if(master)
     grvy_printf(INFO,"[sortio][IO/Read]: Time for raw read  = %e\n",gt.ElapsedSeconds("Raw Read"));
@@ -305,7 +310,10 @@ void sortio_Class::ReadFiles()
 		read_size = fread(&buffer[records_per_file*REC_SIZE],1,REC_SIZE,fp);
 	      
 	      if(read_size == 0)
-		break;
+		{
+		  printf("[%i]: 0 blocks read for %s\n",ioRank_,infile.c_str());
+		  break;
+		}
 	     
 	      if(sortMode_ <= 0)
 		assert(read_size == 1);
@@ -314,6 +322,9 @@ void sortio_Class::ReadFiles()
 
 	      numRecordsRead_++;
 	      records_per_file++;
+
+	      //	      if(ioRank_ == 264)
+	      //		printf("[%i] koomie numRecordsRead = %li\n",ioRank_,numRecordsRead_);
 	    }
 	}
       else

@@ -118,6 +118,9 @@ void sortio_Class::Summarize()
       time_local = gt.ElapsedSeconds("Raw Read");
       read_rate  = 1.0*numRecordsRead_*REC_SIZE/(1000*1000*1000*time_local);
 
+
+      printf("[%i]: numRecordsRead = %li\n",ioRank_,numRecordsRead_);
+
       assert(time_local > 0.0);
       assert(numRecordsRead_ > 0);
     }
