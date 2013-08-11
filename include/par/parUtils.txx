@@ -34,6 +34,8 @@
 #endif
 #endif
 
+//#define KWAY 16 // 8/8/13 from Hari
+
 #define KWAY 32  // karl testing
 //#define KWAY 64  // karl testing
 
