@@ -238,7 +238,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       master = true;
       GRVY::GRVY_Input_Class iparse;
 
-      assert( iparse.Open    ("input.dat")                         != 0);
+      assert( iparse.Open    (ifile.c_str())                         != 0);
       if(!overrideNumFiles_)
 	assert( iparse.Read_Var("sortio/num_files",&numFilesTotal_) != 0);
 
@@ -293,17 +293,17 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
-      grvy_printf(INFO,"[sortio] --> Total number of files to read = %i\n",numFilesTotal_);
-      grvy_printf(INFO,"[sortio] --> Input directory               = %s\n",inputDir_.c_str());
-      grvy_printf(INFO,"[sortio] --> Output directory              = %s\n",outputDir_.c_str());
-      grvy_printf(INFO,"[sortio] --> Number of read buffers        = %i\n",MAX_READ_BUFFERS);
-      grvy_printf(INFO,"[sortio] --> Size of each read buffer      = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
-      grvy_printf(INFO,"[sortio] --> Enable skewed sort kernel?    = %i\n",useSkewSort_);
-      grvy_printf(INFO,"[sortio] --> Number of sort bins           = %i\n",numSortBins_);
+      grvy_printf(INFO,"[sortio] --> Total number of files to read   = %i\n",numFilesTotal_);
+      grvy_printf(INFO,"[sortio] --> Input directory                 = %s\n",inputDir_.c_str());
+      grvy_printf(INFO,"[sortio] --> Output directory                = %s\n",outputDir_.c_str());
+      grvy_printf(INFO,"[sortio] --> Number of read buffers          = %i\n",MAX_READ_BUFFERS);
+      grvy_printf(INFO,"[sortio] --> Size of each read buffer        = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
+      grvy_printf(INFO,"[sortio] --> Enable skewed sort kernel?      = %i\n",useSkewSort_);
+      grvy_printf(INFO,"[sortio] --> Number of sort bins             = %i\n",numSortBins_);
       grvy_printf(INFO,"[sortio] --> Number of sort groups (binning) = %i\n",numSortGroups_);
       grvy_printf(INFO,"[sortio] --> Number of sort groups ( final ) = %i\n",numFinalSortGroups_);
       grvy_printf(INFO,"[sortio] --> Number of sync sorts  ( final ) = %i\n",numMaxFinalSorters_);
-      grvy_printf(INFO,"[sortio] --> Number of sort threads        = %i\n",numSortThreads_);
+      grvy_printf(INFO,"[sortio] --> Number of sort threads          = %i\n",numSortThreads_);
 
     }
 
@@ -471,7 +471,6 @@ void sortio_Class::SplitComm()
 		}
 
 	      // Also build up multiple binning communicators
-
 
 	      //binCommRanks.push_back(std::vector<int> iVec);
 
@@ -702,7 +701,7 @@ void sortio_Class::SplitComm()
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
 
-  //#define SHOWGROUP_COMMS
+#define SHOWGROUP_COMMS
 #ifdef SHOWGROUP_COMMS
   if(master)
     {
