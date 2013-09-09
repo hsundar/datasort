@@ -4,6 +4,8 @@
 // InitRead(): initialize threading environment for IO read tasks
 // --------------------------------------------------------------------
 
+#define ROUND_ROBIN
+
 void sortio_Class::Init_Read()
 {
   assert(initialized_);
@@ -147,13 +149,27 @@ void sortio_Class::ReadFiles()
   filebase += "/";
   filebase += fileBaseName_;
 
+  int leader = 0;
+
   for(int iter=0;iter<num_iters;iter++)
     {
 
       std::ostringstream s_id;
 #ifdef ROUND_ROBIN      
-      int file_suffix = iter*numIoTasks_ + ioRank_;
+
+      if(leader >= numIoTasks_)
+	leader = 0;
+
+      int file_suffix = iter*numIoTasks_ + ioRank_ + leader;
+
+      if(ioRank_ >= (numIoTasks_ - leader) )
+	file_suffix -= numIoTasks_;
+
+      leader++;
+	 
 #else
+      //      assert(numStorageTargets_ == numIoTasks_);
+
       int file_suffix = (ioRank_ % numStorageTargets_) + (iter * numIoTasks_);
 #endif
 
@@ -242,7 +258,8 @@ void sortio_Class::ReadFiles()
       if(emptyQueue_.size() == 0 && sortMode_ > 0)
 	for(int i=0;i<500000;i++)
 	  {
-	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....\n",ioRank_);
+	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....(empty/full) = (%li/%li)\n",
+			emptyQueue_.size(),fullQueue_.size(),ioRank_);
 	    usleep(100000);
 	    if(emptyQueue_.size() > 0)
 	      break;
@@ -311,7 +328,7 @@ void sortio_Class::ReadFiles()
 	      
 	      if(read_size == 0)
 		{
-		  printf("[%i]: 0 blocks read for %s\n",ioRank_,infile.c_str());
+		  //printf("[%i]: 0 blocks read for %s\n",ioRank_,infile.c_str());
 		  break;
 		}
 	     
