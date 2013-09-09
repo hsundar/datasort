@@ -135,6 +135,7 @@ class sortio_Class {
   bool overrideNumSortGroups_;           // Override num_sort_groups setting?
   bool random_read_offset_;              // Randomly change rank ordering for read to minimize cache effects?
   bool mpi_initialized_by_sortio;        // did we have to call MPI_Init()?
+  std::string input_file_;		 // input file;
 
   int  numFilesTotal_;		         // total # of input files to sort
   int  numStorageTargets_;		 // total # of raw storage targets (Lustre OSTs)
