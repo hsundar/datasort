@@ -4,7 +4,7 @@
 // InitRead(): initialize threading environment for IO read tasks
 // --------------------------------------------------------------------
 
-#define ROUND_ROBIN
+//#define ROUND_ROBIN
 
 void sortio_Class::Init_Read()
 {
@@ -259,7 +259,7 @@ void sortio_Class::ReadFiles()
 	for(int i=0;i<500000;i++)
 	  {
 	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....(empty/full) = (%li/%li)\n",
-			emptyQueue_.size(),fullQueue_.size(),ioRank_);
+			ioRank_,emptyQueue_.size(),fullQueue_.size());
 	    usleep(100000);
 	    if(emptyQueue_.size() > 0)
 	      break;
