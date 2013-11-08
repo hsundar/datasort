@@ -258,8 +258,8 @@ void sortio_Class::ReadFiles()
       if(emptyQueue_.size() == 0 && sortMode_ > 0)
 	for(int i=0;i<500000;i++)
 	  {
-	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....(empty/full) = (%li/%li)\n",
-			ioRank_,emptyQueue_.size(),fullQueue_.size());
+	    grvy_printf(INFO,"[sortio][IO/Read][%.4i] no empty buffers, stalling....(empty/full) = (%li/%li) [osends = %li]\n",
+			ioRank_,emptyQueue_.size(),fullQueue_.size(),messageQueue_.size());
 	    usleep(100000);
 	    if(emptyQueue_.size() > 0)
 	      break;
@@ -377,7 +377,8 @@ void sortio_Class::ReadFiles()
 #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	  {
 	    fullQueue_.push_back(buf_num);
-	    grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i\n",ioRank_,fullQueue_.size());
+	    grvy_printf(INFO,"[sortio][IO/Read][%.4i]: # Full buffers  = %2i (osends = %li, empty = %li)\n",
+			ioRank_,fullQueue_.size(),messageQueue_.size(),emptyQueue_.size());
 	  }
 	}
 
