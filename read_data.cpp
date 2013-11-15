@@ -428,7 +428,9 @@ void sortio_Class::doInRamSort()
   MPI_Get_processor_name(hostname, &len);
   grvy_printf(INFO,"[sortio][RAMSORT][%.4i] %s\n",ioRank_,hostname);
 
+#ifdef FIXMEFOR_TITAN
   par::HyperQuickSort_kway(readBuf_,GLOB_COMM);
+#endif
 
   MPI_Barrier(IO_COMM);
   gt.EndTimer("InRam Sort");

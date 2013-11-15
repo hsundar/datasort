@@ -155,6 +155,7 @@ class sortio_Class {
   std::string fileBaseName_;	         // input file basename
   std::string inputDir_;	         // input directory
   std::string outputDir_;		 // output directory
+  std::string tmpDir_;                   // temporary file creation directory
 
   GRVY::GRVY_Timer_Class gt;             // performance timer
 

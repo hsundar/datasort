@@ -228,8 +228,9 @@ void sortio_Class::manageSortProcess()
 		      assert(sortBins.size() == numSortBins_ - 1 );
 		    
 		    outputCount = 0; // first write
-		    
-		    sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[0]);
+
+		    sprintf(tmpFilename,"%s/%i/proc%.4i",tmpDir_.c_str(),outputCount,binRanks_[0]);
+		    //sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[0]);
 		    grvy_printf(DEBUG,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		    
 		    grvy_check_file_path(tmpFilename);
@@ -504,8 +505,9 @@ void sortio_Class::manageSortProcess()
 				sortRank_,filesOnHand,numFilesTotal_,isThresholdNormalSize);
 
 		  outputCount = iterCount*numSortGroups_ + binNum_;
-		  
-		  sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
+
+		  sprintf(tmpFilename,"%s/%i/proc%.4i",tmpDir_.c_str(),outputCount,binRanks_[binNum_]);
+		  //sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i",outputCount,binRanks_[binNum_]);
 		  grvy_printf(DEBUG,"[%.4i] saving to file %s\n",sortRank_,tmpFilename);
 		  
 		  grvy_check_file_path(tmpFilename);
@@ -732,7 +734,8 @@ void sortio_Class::manageSortProcess()
 	      
 		  for(int iter=0;iter<=maxDirNum;iter++)
 		    {
-		      sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,binRanks_[sortGroup],ibin);
+		      sprintf(tmpFilename,"%s/%i/proc%.4i_%.3i.dat",tmpDir_.c_str(),iter,binRanks_[sortGroup],ibin);
+		      //sprintf(tmpFilename,"/tmp/utsort/%i/proc%.4i_%.3i.dat",iter,binRanks_[sortGroup],ibin);
 
 		      FILE *fp = fopen(tmpFilename,"rb");
 		      if(fp == NULL)
@@ -894,7 +897,7 @@ void sortio_Class::manageSortProcess()
 
 	  MPI_Barrier(SORT_COMM);
 	  
-	  if(globalRead != numFilesTotal_*numRecordsPerXfer)
+	  if(globalRead != 1L*numFilesTotal_*numRecordsPerXfer)
 	    {
 	      grvy_printf(ERROR,"[sortio][FINALSORT] koomie expecting to reread %li records but found %li\n",
 			  1L*numFilesTotal_*numRecordsPerXfer,globalRead);

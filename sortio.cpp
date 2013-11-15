@@ -39,7 +39,8 @@ sortio_Class::sortio_Class()
   localXferRank_            = -1;
   maxMessagesToSend_        = 16;
   fileBaseName_             = "part";
-  numStorageTargets_        = 348;
+  numStorageTargets_        = 348;  // Stampede
+  numStorageTargets_        = 1440; // BW
 
   setvbuf( stdout, NULL, _IONBF, 0 );
 }
@@ -92,6 +93,9 @@ void sortio_Class::overrideNumSortGroups(int numGroups)
 void sortio_Class::Summarize()
 {
 
+  //  if(isIOTask_)
+  //    printf("[%i]: Read task is entering final summarize\n",numLocal_);
+
   MPI_Barrier(GLOB_COMM);
   if(sortMode_ > 0 && isIOTask_)
     gt.EndTimer("Wait for Sort Completion");
@@ -142,8 +146,29 @@ void sortio_Class::Summarize()
       MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
     }
 
-  double time_to_recv_data;
+  // Cray XT mod - they do not schedule hosts in a sorted order....send data
+  // from master io rank to master global rank.
 
+  if(ioRank_ == 0)
+    {
+      MPI_Send(&num_records_global,1,MPI_UNSIGNED_LONG,0,6262,GLOB_COMM);
+      MPI_Send(&time_worst,1,MPI_DOUBLE,0,6263,GLOB_COMM);
+      MPI_Send(&time_best ,1,MPI_DOUBLE,0,6264,GLOB_COMM);
+      MPI_Send(&time_avg  ,1,MPI_DOUBLE,0,6265,GLOB_COMM);
+      MPI_Send(&read_rate ,1,MPI_DOUBLE,0,6266,GLOB_COMM);
+          }
+  else if(master)
+    {
+      MPI_Status status1;
+      MPI_Recv(&num_records_global,1,MPI_UNSIGNED_LONG,MPI_ANY_SOURCE,6262,GLOB_COMM,&status1);
+      MPI_Recv(&time_worst,1,MPI_DOUBLE,MPI_ANY_SOURCE,6263,GLOB_COMM,&status1);
+      MPI_Recv(&time_best ,1,MPI_DOUBLE,MPI_ANY_SOURCE,6264,GLOB_COMM,&status1);
+      MPI_Recv(&time_avg  ,1,MPI_DOUBLE,MPI_ANY_SOURCE,6265,GLOB_COMM,&status1);
+      MPI_Recv(&read_rate ,1,MPI_DOUBLE,MPI_ANY_SOURCE,6266,GLOB_COMM,&status1);
+    }
+  
+  double time_to_recv_data;
+  
   if(isXFERTask_ && (xferRank_ == numIoTasks_))	// <-- defined as first recv task 
     {
       //printf("querying XFER/Recv on global rank %i\n",numLocal_);
@@ -151,6 +176,8 @@ void sortio_Class::Summarize()
     }
 
   fflush(NULL);
+
+  MPI_Barrier(GLOB_COMM);
 
   if(master)
     {
@@ -264,6 +291,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
       assert( iparse.Read_Var("sortio/input_dir",             &inputDir_)              != 0 );
       assert( iparse.Read_Var("sortio/output_dir",            &outputDir_)             != 0 );
+      assert( iparse.Read_Var("sortio/tmp_dir",               &tmpDir_)                != 0 );
       assert( iparse.Read_Var("sortio/verify_mode",           &verifyMode_)            != 0 );
       assert( iparse.Read_Var("sortio/sort_mode",             &sortMode_)              != 0 );
       assert( iparse.Read_Var("sortio/enable_skew_kernel",    &useSkewSort_)           != 0 );
@@ -288,13 +316,14 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( MAX_FILE_SIZE_IN_MBS > 0);
       assert( (numSortGroups_  >= 1) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
       assert( (numSortThreads_ >  0) && (numSortThreads_ < 16) ); 
-      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 30*1024 ); // Assume less than 30 GB/host
+      assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 60*1024 ); // Assume less than 60 GB/host
       assert( MAX_MESSAGES_WATERMARK < 100);
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
       grvy_printf(INFO,"[sortio] --> Total number of files to read   = %i\n",numFilesTotal_);
       grvy_printf(INFO,"[sortio] --> Input directory                 = %s\n",inputDir_.c_str());
+      grvy_printf(INFO,"[sortio] --> Temporary directory             = %s\n",tmpDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Output directory                = %s\n",outputDir_.c_str());
       grvy_printf(INFO,"[sortio] --> Number of read buffers          = %i\n",MAX_READ_BUFFERS);
       grvy_printf(INFO,"[sortio] --> Size of each read buffer        = %i MBs\n",MAX_FILE_SIZE_IN_MBS);
@@ -309,10 +338,13 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
 
   // Broadcast necessary runtime controls to all tasks
 
-  int tmp_string_size  = inputDir_.size() + 1;
+  int tmp_string_size  = inputDir_.size()  + 1;
   int tmp_string_size2 = outputDir_.size() + 1;
+  int tmp_string_size3 = tmpDir_.size()    + 1;      
+
   char *tmp_string     = NULL;
   char *tmp_string2    = NULL;
+  char *tmp_string3    = NULL;
 
   //  random_read_offset_  = true;
 
@@ -329,6 +361,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   assert( MPI_Bcast(&MAX_MESSAGES_WATERMARK,1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size,       1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&tmp_string_size2,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
+  assert( MPI_Bcast(&tmp_string_size3,      1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numMaxFinalSorters_,   1,MPI_INT,0,COMM) == MPI_SUCCESS );
   assert( MPI_Bcast(&numFinalSortGroups_,   1,MPI_INT,0,COMM) == MPI_SUCCESS );
   
@@ -338,17 +371,23 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
   tmp_string2 = (char *)calloc(tmp_string_size2,sizeof(char));
   strcpy(tmp_string2,outputDir_.c_str());
 
+  tmp_string3 = (char *)calloc(tmp_string_size3,sizeof(char));
+  strcpy(tmp_string3,tmpDir_.c_str());
+
   assert (MPI_Bcast(tmp_string, tmp_string_size, MPI_CHAR,0,COMM) == MPI_SUCCESS);
   assert (MPI_Bcast(tmp_string2,tmp_string_size2,MPI_CHAR,0,COMM) == MPI_SUCCESS);
+  assert (MPI_Bcast(tmp_string3,tmp_string_size3,MPI_CHAR,0,COMM) == MPI_SUCCESS);
 
   if(!master)
     {
       inputDir_  = tmp_string;
       outputDir_ = tmp_string2;
+      tmpDir_    = tmp_string3;
     }
 
   free(tmp_string);
   free(tmp_string2);
+  free(tmp_string3);
 
   // initialize RNG
 
