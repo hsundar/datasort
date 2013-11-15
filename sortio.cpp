@@ -146,10 +146,12 @@ void sortio_Class::Summarize()
       MPI_Allreduce(&read_rate, &aggregate_rate,1,MPI_DOUBLE,MPI_SUM,IO_COMM);
     }
 
-  // Cray XT mod - they do not schedule hosts in a sorted order....send data
-  // from master io rank to master global rank.
+  MPI_Barrier(GLOB_COMM);
 
-  if(ioRank_ == 0)
+  // Cray XT mod - they do not schedule hosts in a sorted order....send data
+  // from master io rank to master global rank if they are not the same.
+
+  if( (ioRank_ == 0) && !master)
     {
       MPI_Send(&num_records_global,1,MPI_UNSIGNED_LONG,0,6262,GLOB_COMM);
       MPI_Send(&time_worst,1,MPI_DOUBLE,0,6263,GLOB_COMM);
@@ -157,7 +159,7 @@ void sortio_Class::Summarize()
       MPI_Send(&time_avg  ,1,MPI_DOUBLE,0,6265,GLOB_COMM);
       MPI_Send(&read_rate ,1,MPI_DOUBLE,0,6266,GLOB_COMM);
     }
-  else if(master)
+  else if(master && (ioRank_ != 0) )
     {
       MPI_Status status1;
       MPI_Recv(&num_records_global,1,MPI_UNSIGNED_LONG,MPI_ANY_SOURCE,6262,GLOB_COMM,&status1);
@@ -166,12 +168,11 @@ void sortio_Class::Summarize()
       MPI_Recv(&time_avg  ,1,MPI_DOUBLE,MPI_ANY_SOURCE,6265,GLOB_COMM,&status1);
       MPI_Recv(&read_rate ,1,MPI_DOUBLE,MPI_ANY_SOURCE,6266,GLOB_COMM,&status1);
     }
-  
+
   double time_to_recv_data;
   
   if(isXFERTask_ && (xferRank_ == numIoTasks_))	// <-- defined as first recv task 
     {
-      //printf("querying XFER/Recv on global rank %i\n",numLocal_);
       time_to_recv_data = gt.ElapsedSeconds("XFER/Recv");
     }
 
