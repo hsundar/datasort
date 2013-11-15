@@ -118,6 +118,7 @@ void sortio_Class::Transfer_Tasks_Work()
 
       // distribute data from master_io on next set of destination ranks, message tags, etc
 
+      //printf("koomie prior to bcast.....\n");
       assert( MPI_Bcast(&numBuffersToTransfer,1,MPI_INT,0,IO_COMM) == MPI_SUCCESS );
 
       if(numBuffersToTransfer > 0)
@@ -155,6 +156,18 @@ void sortio_Class::Transfer_Tasks_Work()
 	      // step 2: lock the oldest data transfer buffer on this processor
 
 	      std::vector<int> buffersPacked;
+
+	      // step2a: koomie test; sleep in case where we only have 1 buffer in use (to avoid repeated lock
+	      // contention with reader task);
+
+#if 1
+	      if(fullQueue_.size() == 1)
+		{
+		  grvy_printf(INFO,"[sortio][IO/XFER][%.4i] sleeping when fullQueue size = 1\n",ioRank_);
+		  ///usleep(1000000);
+		  usleep(100000);
+		}
+#endif
 	      
               #pragma omp critical (IO_XFER_UPDATES_lock) // Thread-safety: all queue updates are locked
 	      {

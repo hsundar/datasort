@@ -317,7 +317,7 @@ void sortio_Class::Initialize(std::string ifile, MPI_Comm COMM)
       assert( (numSortGroups_  >= 1) && (numSortGroups_  < 16) );   // Assume 16-way hosts or less (need 2 minimum)
       assert( (numSortThreads_ >  0) && (numSortThreads_ < 16) ); 
       assert( MAX_FILE_SIZE_IN_MBS*MAX_READ_BUFFERS <= 60*1024 ); // Assume less than 60 GB/host
-      assert( MAX_MESSAGES_WATERMARK < 100);
+      assert( MAX_MESSAGES_WATERMARK < MAX_READ_BUFFERS);
 
       grvy_printf(INFO,"[sortio]\n");
       grvy_printf(INFO,"[sortio] Runtime input parsing:\n");
