@@ -156,7 +156,7 @@ void sortio_Class::Summarize()
       MPI_Send(&time_best ,1,MPI_DOUBLE,0,6264,GLOB_COMM);
       MPI_Send(&time_avg  ,1,MPI_DOUBLE,0,6265,GLOB_COMM);
       MPI_Send(&read_rate ,1,MPI_DOUBLE,0,6266,GLOB_COMM);
-          }
+    }
   else if(master)
     {
       MPI_Status status1;
@@ -740,7 +740,7 @@ void sortio_Class::SplitComm()
   // summarize the config (data printed from master rank to make the output easy on 
   // the eyes for the time being)
 
-  //#define SHOWGROUP_COMMS
+#define SHOWGROUP_COMMS
 #ifdef SHOWGROUP_COMMS
   if(master)
     {
