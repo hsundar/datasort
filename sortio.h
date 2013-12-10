@@ -1,10 +1,31 @@
 // -*-c++-*-
+//-----------------------------------------------------------------------bl-
+//--------------------------------------------------------------------------
+// 
+// datasort - an IO/data distribution utility for large data sorts.
 //
-// ----------------------------------------------------------------
-// I/O class to aid in a large, distributed sort
+// Copyright (C) 2013 Karl W. Schulz
+//
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the Version 2.1 GNU Lesser General
+// Public License as published by the Free Software Foundation.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc. 51 Franklin Street, Fifth Floor, 
+// Boston, MA  02110-1301  USA
+//
+//-----------------------------------------------------------------------el-
+
+// I/O class definition to aid in a large, distributed sort
 // 
 // Originally: February 2013 (karl@tacc.utexas.edu)
-// ----------------------------------------------------------------
+// -------------------------------------------------------------------------
 
 #ifndef SORTIO_H_
 #define SORTIO_H_

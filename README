@@ -1,0 +1,58 @@
+
+This code provides an out-of-ram large data sort implementation for
+distributed memory systems.  It is tailored to read input from disk
+that is generated via the gensort utility:
+
+www.ordinal.com/gensort.html
+
+----------------------
+Software Requirements
+----------------------
+
+Building the code requires the following:
+
+(1) MPI compiler for C++ with OpenMP support
+(2) GRVY, https://red.ices.utexas.edu/projects/software/wiki/GRVY
+(3) Boost C++ headers, http://www.boost.org
+(4) sort_dist (underlying sort utility)
+
+The code base uses an autotools based build system. A basic
+configuration and build should be achievable using something similar to
+the following:
+
+$ ./configure --with-grvy=<GRVY-install-path> --with-boost=<Boost-install-path> --with-parsort=sort_dist
+$ make -j 4
+
+----------------
+Runtime Control
+----------------
+
+Runtime configuration is controlled via a keyword driven input file
+(see input.dat for an example). Use this to control the location of
+input files, desired paths for temporary and final output, number of
+dedicated IO readers, number of threads per sort host,
+etc. Alternatively, several runtime options can be specified directly
+as command-line arguments:
+
+./testdev <input-file> <numfiles> <numIO_hosts> <num_threads> <num_sort_groups>
+
+-----------
+References 
+-----------
+
+More information on the algorithm and example performance measurements
+obtained are available in the following:
+
+Hari Sundar, Dhairya Malhotra, and Karl W. Schulz. 2013. "Algorithms
+for high-throughput disk-to-disk sorting". 
+
+In Proceedings of SC13: International Conference for High Performance
+Computing, Networking, Storage and Analysis (SC '13). ACM, New York,
+NY, USA, , Article 93 , 10 pages. 
+
+http://doi.acm.org/10.1145/2503210.2503259
+
+
+
+
+
