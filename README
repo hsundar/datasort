@@ -11,15 +11,20 @@ Software Requirements
 
 Building the code requires the following:
 
-(1) MPI compiler for C++ with OpenMP support
-(2) GRVY, https://red.ices.utexas.edu/projects/software/wiki/GRVY
-(3) Boost C++ headers, http://www.boost.org
-(4) sort_dist (underlying sort utility)
+(1) Autotools (autoconf, automake, etc)
+(2) MPI compiler for C++ with OpenMP support
+(3) GRVY, https://red.ices.utexas.edu/projects/software/wiki/GRVY
+(4) Boost C++ headers, http://www.boost.org
+(5) sort_dist (the underlying sort utility code). A copy of the
+    sort_dist distribution that has been run on Cray and InfiniBand
+    Lustre-based supercomputers is included in the sort_dist/
+    subdirectory.
 
 The code base uses an autotools based build system. A basic
-configuration and build should be achievable using something similar to
-the following:
+configuration and build should be achievable using something similar
+to the following:
 
+$ ./bootstrap
 $ ./configure --with-grvy=<GRVY-install-path> --with-boost=<Boost-install-path> --with-parsort=sort_dist
 $ make -j 4
 
@@ -51,8 +56,4 @@ Computing, Networking, Storage and Analysis (SC '13). ACM, New York,
 NY, USA, , Article 93 , 10 pages. 
 
 http://doi.acm.org/10.1145/2503210.2503259
-
-
-
-
 
