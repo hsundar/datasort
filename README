@@ -1,5 +1,5 @@
 
-This code provides an out-of-ram large data sort implementation for
+This code provides an out-of-core large data sort implementation for
 distributed memory systems.  It is tailored to read input from disk
 that is generated via the gensort utility:
 
