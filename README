@@ -48,7 +48,7 @@ References
 -----------
 
 More information on the algorithm and example performance measurements
-obtained are available in the following:
+obtained are available in the following paper:
 
 Hari Sundar, Dhairya Malhotra, and Karl W. Schulz. 2013. "Algorithms
 for high-throughput disk-to-disk sorting". 
