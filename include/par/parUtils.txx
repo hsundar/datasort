@@ -18,6 +18,7 @@
 #include <cstring>
 #include "dendro.h"
 #include <fcntl.h>
+#include <unistd.h>
 #include "indexHolder.h"
 
 #ifdef _PROFILE_SORT
@@ -1969,7 +1970,8 @@ namespace par {
           
           std::vector<T> splitters(splt_count);
           for(size_t i=0;i<splt_count;i++) 
-            splitters[i]=arr_[rand()%nelem];
+            //splitters[i]=arr_[rand()%nelem];  // orig 8/11/13 (ks mod)
+            splitters[i]=arr[rand()%nelem];
 					/* Fisher-Yates shuffle
           unsigned int j;
           for (size_t i=0; i<splt_count; i++) 
@@ -2304,6 +2306,7 @@ namespace par {
 // */
 
 	//	mem effecient HykSort
+#if FIXEMEFORTITAN
   template<typename T>
     int HyperQuickSort_kway(std::vector<T>& arr, MPI_Comm comm_) {
       total_sort.clear();
@@ -2484,8 +2487,10 @@ namespace par {
       PROF_SORT_END
     } // mem effecient HykSort
 
+#endif
 
 
+#ifdef FIXMEFORTITAN
   template<typename T>
     int HyperQuickSort_kway(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm_) {
       total_sort.clear();
@@ -2672,6 +2677,8 @@ namespace par {
 
       PROF_SORT_END
     }
+
+#endif
 
   template<typename T>
     int HyperQuickSort_kway_old(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm_) { // O( ((N/p)+log(p))*(log(N/p)+log(p)) ) 
@@ -4420,14 +4427,15 @@ namespace par {
 		}
 
 
-		template<typename T>
-		int partitionSubArrays(std::vector<T*>& arr, std::vector<int>& a_sz) 
-		{
-			int rank, npes;
-			MPI_Comm_size(comm, &npes);
-			MPI_Comm_rank(comm, &rank);
-			MPI_Request request;
-			MPI_Status status;			
+#if 0
+  template<typename T>
+  int partitionSubArrays(std::vector<T*>& arr, std::vector<int>& a_sz) 
+  {
+    int rank, npes;
+    MPI_Comm_size(comm, &npes);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Request request;
+    MPI_Status status;			
 						
 			// 1.  Compute optimal load partition ...
       int narr = a_sz.size();
@@ -4470,9 +4478,11 @@ namespace par {
 		
 			// figure out to whom the subarray belongs ...
 		
-		}
+  }
+#endif
 
 
+#if 0
     template <typename T>
       int bucketData(std::vector<T> &in, std::vector<T>& splitters, std::vector<T>& out, MPI_Comm comm) {
         int npes, myrank;
@@ -4511,7 +4521,7 @@ namespace par {
 
         return 0;
       }
-
+#endif
 
   //#define USE_ORIG_BUCKET_FUNC
 
